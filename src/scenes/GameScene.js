@@ -38,7 +38,15 @@ const RUN_SPEED = 300;
 // Diagonal jumps need more horizontal push than a ground run. Measured with
 // tools/probe.mjs rather than derived: drag and early landings mean a jump
 // carries ~0.7x what the textbook projectile figure suggests.
-const AIR_SPEED = 480;
+//
+// Tuned against the screen, not for feel alone. A platform has to keep its
+// centre inside [150, 570] to stay on a 720px screen, so the furthest two
+// ledges can ever be apart is 420. At 480 a jump landed 452px away - further
+// than any two platforms could be spaced - so every landing overshot the
+// target's centre onto its outer edge, and a jump taken from the near side
+// of a ledge threw him into the world boundary instead of onto the next one.
+// At 415 it lands ~390, which sits inside the range the layouts can express.
+const AIR_SPEED = 415;
 
 const SWIPE_MIN_DISTANCE = 40;
 const SWIPE_MAX_TIME = 500;
@@ -633,16 +641,19 @@ export default class GameScene extends Phaser.Scene {
 
         const { x, y, type } = spec;
 
+        // Levels may ask for a narrower ledge to make a jump harder to land
+        const width = spec.width || PLATFORM_WIDTH;
+
         const plank = fitWidth(
             this.add.image(x, y, PLATFORM_TEXTURE[type] || PLATFORM_TEXTURE.normal),
-            PLATFORM_WIDTH
+            width
         );
 
         const surfaceOffset = -plank.displayHeight/2 + 10;
 
         const body = this.platformBodies
             .create(x, y + surfaceOffset, null)
-            .setDisplaySize(PLATFORM_WIDTH * 0.92, 20)
+            .setDisplaySize(width * 0.92, 20)
             .setVisible(false);
 
         body.refreshBody();
@@ -1228,15 +1239,22 @@ export default class GameScene extends Phaser.Scene {
             () => this.scene.start("HomeScene")
         );
 
-        this.pauseOverlay = this.add.container(
-            0, 0, [dim, title, resume, replay, home]
-        );
+        // A plain list, not a Container.
+        //
+        // These were children of a Container pinned with setScrollFactor(0).
+        // That fixes where they are *drawn*, but Phaser hit-tests a
+        // container's children against the camera's scroll, so once the
+        // camera had climbed the level the buttons answered taps hundreds of
+        // pixels away from where they appeared - the overlay opened and then
+        // nothing on it could be pressed. Held individually, each one's
+        // scroll factor applies to input and rendering alike.
+        this.pauseOverlay = [dim, title, resume, replay, home];
 
-        // Built in screen coordinates, so it must not scroll with the level
-        this.pauseOverlay
+        this.pauseOverlay.forEach(part => part
             .setDepth(300)
+            .setScrollFactor(0)
             .setVisible(false)
-            .setScrollFactor(0, 0, true);
+        );
 
     }
 
@@ -1265,7 +1283,15 @@ export default class GameScene extends Phaser.Scene {
 
         }
 
-        this.pauseOverlay.setVisible(this.isPaused);
+        this.showPauseOverlay(this.isPaused);
+
+    }
+
+    //------------------------------------------------
+
+    showPauseOverlay(visible){
+
+        this.pauseOverlay.forEach(part => part.setVisible(visible));
 
     }
 

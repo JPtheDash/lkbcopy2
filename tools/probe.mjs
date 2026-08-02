@@ -90,6 +90,7 @@ async function measure(level, dx, dy, clearPlatforms = false, alignUnderPlatform
             probe.maxX = Math.max(probe.maxX, k.x);
             probe.minX = Math.min(probe.minX, k.x);
             probe.endY = k.y;
+            probe.endX = k.x;
             probe.grounded = grounded;
             probe.frames = (probe.frames || 0) + 1;
 
@@ -120,6 +121,7 @@ async function measure(level, dx, dy, clearPlatforms = false, alignUnderPlatform
             rise: Math.round(p.startY - p.minY),
             reach: Math.round(Math.max(p.maxX - p.startX, p.startX - p.minX)),
             settledHigher: Math.round(p.startY - p.endY),
+            landing: Math.round(Math.abs(p.endX - p.startX)),
             grounded: p.grounded
         };
     });
@@ -130,18 +132,32 @@ console.log("straight-up  rise", straight.rise, "px, ended", straight.settledHig
             "px higher, grounded:", straight.grounded);
 
 const diag = await measure(1, 80, -80, true);
-console.log("diagonal     rise", diag.rise, "px, free-air reach", diag.reach, "px");
+console.log("diagonal     rise", diag.rise, "px, free-air reach", diag.reach,
+            "px, lands", diag.landing, "px sideways");
 
 const demand = await page.evaluate(() => {
     const levels = window.__game.scene.getScene("GameScene").__allLevels;
     return levels.map(l => {
         let maxDy = 0, maxDx = 0;
-        const pts = [[l.spawn[0], 2470], ...l.platforms.map(p => [p.x, p.y]), l.butter];
-        for (let i = 1; i < pts.length; i++) {
-            maxDy = Math.max(maxDy, pts[i - 1][1] - pts[i][1]);
-            maxDx = Math.max(maxDx, Math.abs(pts[i][0] - pts[i - 1][0]));
+
+        // The butter is collected in the air or from where he stands, so it
+        // is a reach check only. Everything before it has to be landed on.
+        const hops = [[l.spawn[0], 2470], ...l.platforms.map(p => [p.x, p.y, p.width])];
+
+        const steps = [];
+
+        for (let i = 1; i < hops.length; i++) {
+            const dy = hops[i - 1][1] - hops[i][1];
+            const dx = Math.abs(hops[i][0] - hops[i - 1][0]);
+            maxDy = Math.max(maxDy, dy);
+            maxDx = Math.max(maxDx, dx);
+            if (dy > 0) steps.push({ to: i, dx, width: hops[i][2] || 300 });
         }
-        return { id: l.id, maxDy, maxDx };
+
+        maxDy = Math.max(maxDy, hops[hops.length - 1][1] - l.butter[1]);
+        maxDx = Math.max(maxDx, Math.abs(l.butter[0] - hops[hops.length - 1][0]));
+
+        return { id: l.id, maxDy, maxDx, steps };
     });
 });
 
@@ -149,10 +165,25 @@ console.log("\nlevel demands vs the diagonal envelope:");
 
 let bad = 0;
 
+// A jump has no throttle, so it always carries the same distance before it
+// can touch down. A step that is too SHORT is therefore just as unplayable as
+// one that is too far - he sails straight over the ledge. Only checking the
+// maximum let every level ship with a final step of ~175px that no player
+// could land on, while the bot still "won" by brushing the butter in flight.
 demand.forEach(d => {
     const okRise = d.maxDy <= diag.rise;
     const okReach = d.maxDx <= diag.reach;
-    if (!okRise || !okReach) bad++;
+
+    const missed = d.steps.filter(
+        st => Math.abs(st.dx - diag.landing) > st.width / 2
+    );
+
+    if (!okRise || !okReach || missed.length) bad++;
+
+    missed.forEach(st => console.log(
+        `      step onto platform ${st.to}: ${st.dx}px, but a jump lands at ` +
+        `${diag.landing}px and that ledge is only ${st.width}px wide`
+    ));
     console.log(
         `  level ${d.id}: rise ${d.maxDy} ${okRise ? "ok" : "TOO HIGH"}, ` +
         `reach ${d.maxDx} ${okReach ? "ok" : "TOO FAR"}`

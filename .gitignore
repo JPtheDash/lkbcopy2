@@ -30,3 +30,9 @@ dist/
 *.log
 # Personal Claude Code settings; .claude/settings.json is the shared one
 .claude/settings.local.json
+dist-apk/
+android/local.properties
+android/.gradle/
+android/build/
+android/app/build/
+android/capacitor-cordova-android-plugins/
