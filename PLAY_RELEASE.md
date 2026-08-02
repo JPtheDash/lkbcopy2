@@ -65,14 +65,26 @@ None of this lives in the bundle.
 
 - **Play App Signing** — accept it when creating the app. It is what makes a
   lost upload key recoverable.
-- **Privacy policy URL.** Written already — `PRIVACY.md`, with a ready-to-host
-  page at `docs/privacy.html`. Play needs it at a *public URL*, so it still has
-  to be published. The cheapest route is GitHub Pages: repository *Settings →
-  Pages → Source: deploy from a branch → main, folder `/docs`*, which serves it
-  at `https://jpthedash.github.io/lkbcopy2/privacy.html`.
+- **Privacy policy URL.** Published. Both files are on `main`, so this URL is
+  live and can go straight into the console:
 
-  Read it before publishing — it names you as developer and puts your email
-  address on a public page.
+      https://github.com/JPtheDash/lkbcopy2/blob/main/PRIVACY.md
+
+  They are on `main` rather than on a feature branch on purpose: Play can pull
+  an app whose policy link stops resolving, and a link pinned to a branch dies
+  the moment that branch is renamed or merged away.
+
+  For a cleaner page without GitHub's chrome, turn on Pages — *Settings →
+  Pages → Source: deploy from a branch → `main`, folder `/docs`* — which
+  serves `docs/privacy.html` at:
+
+      https://jpthedash.github.io/lkbcopy2/privacy.html
+
+  That switch cannot be flipped from here: the Codespaces token has no
+  `pages` permission and the API refuses it.
+
+  Do **not** use the raw.githubusercontent.com link. GitHub serves raw files
+  as `text/plain`, so a browser shows the HTML source rather than the page.
 - **Data safety form.** Declare no collection and no sharing. Progress is kept
   in the device's own WebView storage and never leaves the phone.
 - **Content rating questionnaire.** Answer it honestly; a game like this
