@@ -1,12 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!--
+        usesCleartextTraffic is false because the game is entirely local: no
+        server, no login, nothing to fetch. Saying so stops a release build
+        ever falling back to plaintext HTTP.
+
+        Backup is left on the platform default deliberately. Custom rules
+        looked like an improvement and were the opposite: progress is kept in
+        the WebView's localStorage, which lives under app_webview in the root
+        domain, so rules written against the file and database domains backed
+        up none of it - while the default already saves the whole data
+        directory and already skips the cache directories.
+    -->
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
+        android:usesCleartextTraffic="false"
         android:theme="@style/AppTheme">
 
         <activity

@@ -1,5 +1,20 @@
 apply plugin: 'com.android.application'
 
+// Release signing. Play will not accept a bundle signed with the debug key,
+// and the real key must never be in the repository - so it is read from
+// android/keystore/, which .gitignore excludes.
+//
+// When the file is absent the release build is left unsigned rather than
+// failing: a checkout without the key can still compile and run the debug
+// variant, which is what CI and a fresh clone actually need.
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('keystore/keystore.properties')
+def hasSigningKey = keystorePropertiesFile.exists()
+
+if (hasSigningKey) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
 android {
     namespace = "com.jpthedash.littlekrishnabutterhunt"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -16,11 +31,48 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        if (hasSigningKey) {
+            release {
+                storeFile rootProject.file("keystore/${keystoreProperties['storeFile']}")
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+
+                // Play requires the v2 block; v1 is kept so the same artifact
+                // still verifies if it is ever sideloaded onto an older phone.
+                enableV1Signing true
+                enableV2Signing true
+            }
+        }
+    }
+
     buildTypes {
         release {
+            // Left off deliberately. The whole game is JavaScript inside a
+            // WebView, so R8 has almost nothing of ours to shrink - it would
+            // only strip Capacitor's bridge classes, which are reached by
+            // reflection from JavaScript and so look unused to it. The saving
+            // is a fraction of a 9MB bundle that is nearly all art and audio;
+            // the failure mode is a blank white screen on launch.
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+
+            if (hasSigningKey) {
+                signingConfig signingConfigs.release
+            }
+
+            // Play rejects a debuggable release outright
+            debuggable false
         }
+    }
+
+    // Trims the bundle Play generates for each device: without this every
+    // phone downloads every density of the launcher icon and splash.
+    bundle {
+        language { enableSplit = true }
+        density { enableSplit = true }
+        abi { enableSplit = true }
     }
 }
 
