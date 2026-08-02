@@ -156,6 +156,7 @@ for (let level = 1; level <= LEVEL_COUNT; level++) {
     // walking a fixed list. Krishna does not always land where the list
     // expects, and a fixed list silently desynchronises from where he is.
     const startY = (await state()).y;
+    const startedAt = Date.now();
 
     let best = startY;
     let stalls = 0;
@@ -217,7 +218,15 @@ for (let level = 1; level <= LEVEL_COUNT; level++) {
     const climbed = end.gone ? startY - best : startY - end.y;
 
     if (complete) {
-        console.log(`level ${level}: COMPLETED  (${steps} platforms, climbed ${climbed}px)`);
+        // How long the climb itself takes, so timers can be set from measured
+        // completion time rather than guessed. The bot pauses to settle after
+        // every jump, so this reads as a slow player rather than a fast one.
+        const took = (Date.now() - startedAt) / 1000;
+
+        console.log(
+            `level ${level}: COMPLETED  (${steps} platforms, ` +
+            `climbed ${climbed}px, ${took.toFixed(1)}s)`
+        );
     } else {
         failed++;
         if (!end.gone) await page.screenshot({ path: `${OUT}/stuck-level${level}.png` });

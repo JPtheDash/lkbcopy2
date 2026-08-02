@@ -63,10 +63,21 @@ const HIDE_OFFSET = 95;
 // hesitation rather than less room to physically finish.
 //-------------------------------------------------------------------
 
-const EASY = 60;
-const MEDIUM = 45;
-const HARD = 30;
-const EXPERT = 20;
+// Measured, not chosen. tools/playtest.mjs reports how long each climb takes
+// (13-16s) and each of Yashoda's visits costs its warning plus its watch, so
+// a level needs roughly:
+//
+//   climb + visits x (warning + watch) + 20s of slack
+//
+// The 20 is what makes three stars reachable, since stars are awarded on
+// seconds left rather than on a fraction of the timer. The timers still fall
+// as the levels progress; what falls faster is the slack on top of the work,
+// because the later levels have more to do inside them.
+// Measured against tools/playtest.mjs, which reports each climb at 9-16s,
+// plus every visit costing its warning and its watch. Worked through, the
+// slack left at bot pace is 46, 41, 36, 25, 27, 26, 22, 21 seconds - all at
+// or above the 20 that three stars needs, and falling steadily.
+const TIMERS = [60, 56, 53, 50, 49, 48, 47, 47];
 
 /**
  * Builds a zig-zag ladder of platforms from the bottom upward, finishing with
@@ -80,7 +91,7 @@ const EXPERT = 20;
  */
 function climb({
     from, gap, count, near, far,
-    small = [], moving = [], crumbling = [], fakes = []
+    small = [], moving = [], crumbling = [], fakes = [], hideEvery = 2
 }){
 
     const platforms = [];
@@ -109,10 +120,21 @@ function climb({
 
             ...(small.includes(i) ? { width: SMALL_WIDTH } : {}),
 
-            hide: {
-                x: x - travel * HIDE_OFFSET,
-                real: !fakes.includes(i)
-            }
+            // Real cover sits on every hideEvery-th ledge. A pot on all of
+            // them made the room look like a pottery shelf and made hiding
+            // automatic - you were usually standing next to one already.
+            //
+            // Fakes go on the ledges in between, and are additions rather
+            // than replacements. Turning a real pot into a fake would leave
+            // its ledge two jumps from anywhere safe, which a warning does
+            // not allow time for; as extra pots they cost nothing but the
+            // decision, which is the point of them.
+            ...(i % hideEvery === 0 || fakes.includes(i) ? {
+                hide: {
+                    x: x - travel * HIDE_OFFSET,
+                    real: !fakes.includes(i)
+                }
+            } : {})
         });
 
     }
@@ -154,69 +176,70 @@ const LEFT_FIRST = { near: EDGE_MARGIN, far: EDGE_MARGIN + STEP };
 
 const Levels = [
 
-    // Teaches the climb and the hiding pot. Short, slow, nothing moves, and
-    // Yashoda only looks in once.
+    // Teaches the climb and the pot. Six ledges, nothing moves, nothing falls
+    // away, and Yashoda looks in once with a long warning.
     level({
-        id: 1, timer: EASY, drops: [3],
-        from: 2360, gap: 170, count: 8, ...RIGHT_FIRST,
-        mother: { visits: 1, warning: 2800, watch: 1200 }
+        id: 1, timer: TIMERS[0], drops: [2],
+        from: 2360, gap: 170, count: 6, ...RIGHT_FIRST,
+        mother: { visits: 1, warning: 3200, watch: 1000 }
     }),
 
-    // A longer climb, so the butter sits higher, and less time to reach it.
+    // A longer climb, so the butter sits higher.
     level({
-        id: 2, timer: EASY - 5, drops: [2, 6],
-        from: 2360, gap: 168, count: 10, ...LEFT_FIRST,
-        mother: { visits: 1, warning: 2600, watch: 1300 }
+        id: 2, timer: TIMERS[1], drops: [2, 6],
+        from: 2360, gap: 168, count: 8, ...LEFT_FIRST,
+        mother: { visits: 1, warning: 2800, watch: 1200 }
     }),
 
     // She walks in faster - the same warning, less of it.
     level({
-        id: 3, timer: MEDIUM + 5, drops: [3, 8],
+        id: 3, timer: TIMERS[2], drops: [3, 7],
         from: 2360, gap: 170, count: 10, ...RIGHT_FIRST,
-        mother: { visits: 1, warning: 2000, watch: 1400 }
+        mother: { visits: 1, warning: 2300, watch: 1300 }
     }),
 
-    // Two separate moments to hide, spread across the climb.
+    // Two separate moments to hide, and the first ledge that falls away.
     level({
-        id: 4, timer: MEDIUM, drops: [1, 5, 9],
-        from: 2360, gap: 172, count: 11, ...RIGHT_FIRST,
-        crumbling: [4],
-        mother: { visits: 2, warning: 2000, watch: 1400 }
+        id: 4, timer: TIMERS[3], drops: [1, 5, 9],
+        from: 2360, gap: 172, count: 10, ...RIGHT_FIRST,
+        crumbling: [5],
+        mother: { visits: 2, warning: 2200, watch: 1300 }
     }),
 
     // Ledges that slide, on top of two visits.
     level({
-        id: 5, timer: MEDIUM - 5, drops: [2, 6, 10],
+        id: 5, timer: TIMERS[4], drops: [2, 6, 10],
         from: 2360, gap: 175, count: 11, ...LEFT_FIRST,
         moving: [3, 7], crumbling: [5],
-        mother: { visits: 2, warning: 1900, watch: 1500 }
+        mother: { visits: 2, warning: 2100, watch: 1400 }
     }),
 
-    // Some pots are not hiding places at all. Never two in a row, so there is
-    // always a real one within a single jump.
+    // Some pots are not hiding places at all. Cover sits on every second
+    // ledge, so a fake one has to leave the next pot up or down real -
+    // fakes are kept four apart, never two pots in a row.
     level({
-        id: 6, timer: HARD + 5, drops: [2, 7],
+        id: 6, timer: TIMERS[5], drops: [2, 7],
         from: 2360, gap: 175, count: 12, ...RIGHT_FIRST,
-        moving: [4, 9], crumbling: [6],
-        fakes: [3, 8],
-        mother: { visits: 2, warning: 1900, watch: 1500 }
+        moving: [3, 9], crumbling: [7],
+        fakes: [5, 11],
+        mother: { visits: 2, warning: 2000, watch: 1400 }
     }),
 
     // Everything at once, and she stops keeping to a rhythm.
     level({
-        id: 7, timer: HARD, drops: [3, 8],
+        id: 7, timer: TIMERS[6], drops: [3, 8],
         from: 2360, gap: 175, count: 12, ...LEFT_FIRST,
-        small: [5, 10], moving: [2, 7], crumbling: [4],
-        fakes: [6, 11],
-        mother: { visits: 3, warning: 1800, watch: 1500, jitter: 3000 }
+        small: [5, 11], moving: [3, 9], crumbling: [7],
+        fakes: [5, 11],
+        mother: { visits: 3, warning: 2000, watch: 1400, jitter: 3000 }
     }),
 
     level({
-        id: 8, timer: EXPERT, drops: [4, 9],
+        id: 8, timer: TIMERS[7], drops: [4, 9],
         from: 2360, gap: 175, count: 12, ...RIGHT_FIRST,
-        small: [3, 6, 10], moving: [2, 8], crumbling: [5],
-        fakes: [4, 9],
-        mother: { visits: 3, warning: 1600, watch: 1600, jitter: 3500 }
+        small: [3, 5, 11], moving: [7, 9], crumbling: [1],
+        fakes: [3, 11],
+        mother: { visits: 3, warning: 2000, watch: 1500, jitter: 3500 }
     })
 
 ];

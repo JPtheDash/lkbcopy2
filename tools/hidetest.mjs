@@ -138,26 +138,38 @@ console.log("\na fake pot should not either:");
 await trial(6, "fake");
 await trial(8, "fake");
 
-// A level that introduces fakes has to leave a real pot within one jump, or
-// a warning can arrive with nowhere to go.
-console.log("\nno two fake pots in a row:");
+// Cover is on every second ledge, so what matters is the gap between REAL
+// pots, counted in platforms. One means a bare ledge between them - a single
+// jump to reach cover, which the shortest warning allows. Two would mean a
+// warning could arrive with nowhere reachable to go.
+console.log("\nnever more than one ledge between real cover:");
 
-const runs = await page.evaluate(() => {
+const gaps = await page.evaluate(() => {
     const levels = window.__game.scene.getScene("GameScene").__allLevels;
     return levels.map(l => {
-        let worst = 0, run = 0;
-        l.platforms.forEach(p => {
-            run = p.hide && !p.hide.real ? run + 1 : 0;
-            worst = Math.max(worst, run);
+        const real = l.platforms
+            .map((p, i) => (p.hide && p.hide.real ? i : -1))
+            .filter(i => i >= 0);
+
+        let worst = 0;
+
+        // Distance from every platform to the nearest real pot, in platforms
+        l.platforms.forEach((p, i) => {
+            const nearest = Math.min(...real.map(r => Math.abs(r - i)));
+            worst = Math.max(worst, nearest);
         });
-        return { id: l.id, worst };
+
+        return { id: l.id, worst, real: real.length, total: l.platforms.length };
     });
 });
 
-runs.forEach(r => {
-    const ok = r.worst < 2;
-    console.log(`  level ${r.id}: longest run of fakes ${r.worst} ${ok ? "ok" : "TOO MANY"}`);
-    if (!ok) failures.push(`level ${r.id} has ${r.worst} fake pots in a row`);
+gaps.forEach(g => {
+    const ok = g.worst <= 1;
+    console.log(
+        `  level ${g.id}: ${g.real} real pots over ${g.total} ledges, ` +
+        `furthest any ledge is from cover: ${g.worst} ${ok ? "ok" : "TOO FAR"}`
+    );
+    if (!ok) failures.push(`level ${g.id}: a ledge is ${g.worst} jumps from real cover`);
 });
 
 await browser.close();

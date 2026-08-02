@@ -1256,7 +1256,7 @@ export default class GameScene extends Phaser.Scene {
         AudioManager.play(this,"collect");
 
         const result = {
-            stars: getStars(this.timeLeft, this.totalTime),
+            stars: getStars(this.timeLeft),
             timeLeft: this.timeLeft,
             level: this.level
         };
