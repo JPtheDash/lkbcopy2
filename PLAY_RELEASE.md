@@ -65,9 +65,14 @@ None of this lives in the bundle.
 
 - **Play App Signing** — accept it when creating the app. It is what makes a
   lost upload key recoverable.
-- **Privacy policy URL.** Required for every app, and required to be reachable
-  at a public URL. The game collects nothing, but the policy still has to exist
-  and say so.
+- **Privacy policy URL.** Written already — `PRIVACY.md`, with a ready-to-host
+  page at `docs/privacy.html`. Play needs it at a *public URL*, so it still has
+  to be published. The cheapest route is GitHub Pages: repository *Settings →
+  Pages → Source: deploy from a branch → main, folder `/docs`*, which serves it
+  at `https://jpthedash.github.io/lkbcopy2/privacy.html`.
+
+  Read it before publishing — it names you as developer and puts your email
+  address on a public page.
 - **Data safety form.** Declare no collection and no sharing. Progress is kept
   in the device's own WebView storage and never leaves the phone.
 - **Content rating questionnaire.** Answer it honestly; a game like this
