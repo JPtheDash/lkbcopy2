@@ -64,6 +64,21 @@ BAND_WIDTH = 8
 EDGE_BLUR = 0.6
 EDGE_THRESHOLD = 5
 
+# What a leftover scrap of backdrop looks like next to the art.
+#
+# The ceiling is this high because the scrap is rarely grey: the hero art has
+# a coloured glow painted around the figure, so the rind carries it - blue
+# down one side at 0.20 to 0.32 saturation, warm down the other at 0.35. A
+# neutral-only test took a tenth of it and left the rest as a staircase of
+# haze, invisible on the dark backgrounds the art is normally seen against
+# and obvious the moment it went on a store banner over a pale sky.
+#
+# It stays under what the art itself measures - skin around 0.64, gold and
+# feather past 0.9 - and the luminance window guards the two things that are
+# desaturated on purpose: hair below 55, pearls and highlights above 190.
+RIND_SATURATION = 0.55
+RIND_LUM = (55, 190)
+
 # Smaller than an 8x8 patch and it is keying residue, not something drawn
 OPAQUE = 200
 MIN_BLOB = 64
@@ -361,6 +376,73 @@ def close_gaps(kept, w, h, size):
     return bytearray(1 if p else 0 for p in out.get_flattened_data())
 
 
+def strip_rind(im, kept, w, h):
+    """
+    Peel off backdrop still clinging to the outline.
+
+    The steepness test stops the fill at anything that changes fast, and JPEG
+    ringing around the art changes fast - so the fill can halt a few pixels
+    early and leave a rind of backdrop grey welded to the silhouette. It is
+    invisible against the dark backgrounds the art is normally composited on
+    and unmissable on a pale one, which is a bad way to find out.
+
+    The tell is that it still looks like backdrop: neutral, and mid-toned.
+    Every part of the art it borders is either strongly coloured - blue skin,
+    gold, green - or much darker than the backdrop ever gets, so spreading
+    inward from the transparent region through neutral mid-tones only takes
+    the rind. Highlights survive: they are far brighter than RIND_LUM allows,
+    and enclosed ones like the whites of the eyes are never reached at all.
+    """
+
+    px = im.convert("RGB").load()
+    lo, hi = RIND_LUM
+
+    def backdroplike(i):
+
+        if not kept[i]:
+            return False
+
+        r, g, b = px[i % w, i // w]
+
+        top, bottom = max(r, g, b), min(r, g, b)
+
+        if top and (top - bottom) / top > RIND_SATURATION:
+            return False
+
+        return lo <= (r + g + b) / 3 <= hi
+
+    out = bytearray(kept)
+    seen = bytearray(w * h)
+    queue = deque()
+
+    # Seed from everything already judged backdrop
+    for i in range(w * h):
+        if not kept[i]:
+            seen[i] = 1
+            queue.append(i)
+
+    while queue:
+
+        i = queue.popleft()
+        x, y = i % w, i // w
+
+        for nx, ny in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+
+            if not (0 <= nx < w and 0 <= ny < h):
+                continue
+
+            j = ny * w + nx
+
+            if seen[j] or not backdroplike(j):
+                continue
+
+            seen[j] = 1
+            out[j] = 0
+            queue.append(j)
+
+    return out
+
+
 def keep_largest(kept, w, h):
     """
     Throw away everything not joined to the main shape.
@@ -508,6 +590,13 @@ def key(path, tolerance=DEFAULT_TOLERANCE, checker=False, edges=False, close=0):
         # A pocket several window-widths across was never something closing
         # was meant to reach, so it is left alone as real backdrop.
         kept = fill_holes(kept, w, h, (close * 4) ** 2)
+
+    # Last, and it has to be last: closing dilates the silhouette outward, so
+    # stripping the rind before it simply hands those pixels back. Running it
+    # after fill_holes is safe because a sealed pocket is not reachable from
+    # the outside, which is the only place this spreads from.
+    if edges:
+        kept = strip_rind(im, kept, w, h)
 
     alpha = Image.frombytes("L", (w, h), bytes(255 if k else 0 for k in kept))
 
