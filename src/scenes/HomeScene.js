@@ -15,7 +15,7 @@ import iconMusic from "../assets/ui/icon_music.png";
 import iconSound from "../assets/ui/icon_sound.png";
 import iconLanguage from "../assets/ui/icon_language.png";
 import SettingsPanel from "../ui/SettingsPanel";
-import { fitWidth, fitHeight, GAME_WIDTH, GAME_HEIGHT } from "../ui/layout";
+import { fitWidth, fitHeight, GAME_WIDTH, GAME_HEIGHT , coverScreen} from "../ui/layout";
 
 export default class HomeScene extends Phaser.Scene {
 
@@ -47,9 +47,18 @@ export default class HomeScene extends Phaser.Scene {
 
         AudioManager.startMusic(this, "menu");
 
+        // The canvas is as tall as the phone rather than a fixed 1280, so
+        // these are anchored instead of written out: the title hangs from the
+        // top, the play button sits above the bottom, and Krishna stands on
+        // the button. On a long screen the extra height opens up between the
+        // title and him - which is village - rather than stranding the whole
+        // composition in the upper two thirds.
+        const titleY = 210;
+        const playY = GAME_HEIGHT - 265;
+        const krishnaFeet = playY - 80;
+
         // Background
-        this.add.image(GAME_WIDTH/2, GAME_HEIGHT/2, "homeBg")
-            .setDisplaySize(GAME_WIDTH, GAME_HEIGHT)
+        coverScreen(this.add.image(0, 0, "homeBg"))
             .setDepth(-100);
 
         // Warm scrim so the white UI text stays readable on the art
@@ -59,13 +68,13 @@ export default class HomeScene extends Phaser.Scene {
 
         // Logo
         this.logo = fitWidth(
-            this.add.image(GAME_WIDTH/2, 210, "logo"),
+            this.add.image(GAME_WIDTH/2, titleY, "logo"),
             430
         ).setDepth(2);
 
         this.tweens.add({
             targets: this.logo,
-            y: 198,
+            y: titleY - 12,
             duration: 1800,
             yoyo: true,
             repeat: -1,
@@ -98,7 +107,7 @@ export default class HomeScene extends Phaser.Scene {
         // Stood on his feet rather than centred, so that the breathing below
         // settles him onto the ground instead of bobbing him off it.
         this.krishna = fitHeight(
-            this.add.image(GAME_WIDTH/2, 935, "krishnaHero").setOrigin(0.5, 1),
+            this.add.image(GAME_WIDTH/2, krishnaFeet, "krishnaHero").setOrigin(0.5, 1),
             580
         );
 
@@ -111,10 +120,10 @@ export default class HomeScene extends Phaser.Scene {
             ease: "Sine.easeInOut"
         });
 
-        // Play button, low enough to clear his feet - at 940 its top edge cut
-        // across his ankles now that he is drawn full height
+        // Low enough to clear his feet: at the old fixed 940 its top edge cut
+        // across his ankles once he was drawn full height.
         this.playButton = fitWidth(
-            this.add.image(GAME_WIDTH/2, 1015, "playButton"),
+            this.add.image(GAME_WIDTH/2, playY, "playButton"),
             280
         ).setInteractive({ useHandCursor: true });
 

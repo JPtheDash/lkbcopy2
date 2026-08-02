@@ -11,7 +11,7 @@ import starEmpty from "../assets/ui/star_empty.png";
 import homeButtonImg from "../assets/ui/home_button.png";
 
 import LevelManager from "../managers/LevelManager";
-import { fitWidth, GAME_WIDTH, GAME_HEIGHT } from "../ui/layout";
+import { fitWidth, GAME_WIDTH, GAME_HEIGHT , coverScreen} from "../ui/layout";
 
 const COLUMNS = 3;
 const BUTTON_WIDTH = 130;
@@ -43,8 +43,7 @@ export default class LevelSelectScene extends Phaser.Scene {
 
         AudioManager.startMusic(this, "menu");
 
-        this.add.image(GAME_WIDTH/2, GAME_HEIGHT/2, "background")
-            .setDisplaySize(GAME_WIDTH, GAME_HEIGHT);
+        coverScreen(this.add.image(0, 0, "background"));
 
         this.add.rectangle(
             GAME_WIDTH/2, GAME_HEIGHT/2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.5
@@ -166,6 +165,19 @@ export default class LevelSelectScene extends Phaser.Scene {
             this.scene.start("HomeScene");
 
         });
+
+    }
+
+    //------------------------------------------------
+
+    /**
+     * Android's back button goes up a screen, to the home screen, rather
+     * than closing the app. Only the home screen, where there is
+     * nowhere further up, asks about leaving.
+     */
+    onBackButton(){
+
+        this.scene.start("HomeScene");
 
     }
 

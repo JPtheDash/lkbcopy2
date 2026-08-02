@@ -1503,6 +1503,49 @@ export default class GameScene extends Phaser.Scene {
 
     //------------------------------------------------
 
+    /**
+     * Android's back button, mid-level.
+     *
+     * It opens the pause menu rather than leaving, because back arriving as
+     * "quit" would throw away a climb on one mis-tap. Pressing it again from
+     * the pause menu resumes, so back is always reversible here and never
+     * costs progress.
+     */
+    onBackButton(){
+
+        if(this.isGameOver){
+
+            return;
+
+        }
+
+        this.togglePause();
+
+    }
+
+    //------------------------------------------------
+
+    /**
+     * The phone was pocketed, or another app came to the front.
+     *
+     * The level pauses itself rather than running on unseen - without this
+     * the countdown keeps going in the background and the player comes back
+     * to a Game Over they never saw happen.
+     */
+    onAppBackground(){
+
+        if(this.isGameOver || this.isPaused){
+
+            return;
+
+        }
+
+        this.togglePause();
+
+    }
+
+    //------------------------------------------------
+
     togglePause(){
 
         if(this.isGameOver){

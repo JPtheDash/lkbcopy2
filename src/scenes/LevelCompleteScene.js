@@ -15,7 +15,7 @@ import starPanel from "../assets/ui/star_panel.png";
 import ribbonPerfect from "../assets/ui/ribbon_perfect.png";
 import homeBackground from "../assets/backgrounds/home_background.jpg";
 
-import { fitWidth, fitHeight, GAME_WIDTH, GAME_HEIGHT } from "../ui/layout";
+import { fitWidth, fitHeight, GAME_WIDTH, GAME_HEIGHT , coverScreen} from "../ui/layout";
 
 const STAR_DELAY = 400;
 
@@ -47,8 +47,7 @@ export default class LevelCompleteScene extends Phaser.Scene{
         // Back out of the climb's music now the level is over
         AudioManager.startMusic(this, "menu");
 
-        this.add.image(GAME_WIDTH/2, GAME_HEIGHT/2, "homeBackground")
-            .setDisplaySize(GAME_WIDTH, GAME_HEIGHT)
+        coverScreen(this.add.image(0, 0, "homeBackground"))
             .setDepth(-10);
 
         this.add.rectangle(
@@ -302,6 +301,19 @@ export default class LevelCompleteScene extends Phaser.Scene{
             this.scene.start("HomeScene");
 
         });
+
+    }
+
+    //------------------------------------------------
+
+    /**
+     * Android's back button goes up a screen, to the level list, rather
+     * than closing the app. Only the home screen, where there is
+     * nowhere further up, asks about leaving.
+     */
+    onBackButton(){
+
+        this.scene.start("LevelSelectScene");
 
     }
 

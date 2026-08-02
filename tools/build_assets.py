@@ -52,6 +52,7 @@ KEYING = {
 
     "krishna_hero.png": "edges",
     "butter_pot.png": "edges",
+    "logo.png": "edges",
 }
 
 # Art drawn as a mesh of separate strokes rather than one solid shape, and how

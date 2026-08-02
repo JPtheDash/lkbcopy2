@@ -43,6 +43,7 @@ TARGETS = {
     "world_vrindavan.png":   "ui",
     "world_yamuna.png":      "ui",
     "world_mathura.png":     "ui",
+    "logo.png":              "ui",
     "ribbon_perfect.png":    "ui",
     "hint_swipe.png":        "ui",
     "hint_hand.png":         "ui",

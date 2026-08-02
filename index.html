@@ -1,3 +1,55 @@
+<head>
+<meta charset="utf-8">
+
+<!--
+    viewport-fit=cover lets the canvas run under the notch and the gesture
+    bar rather than stopping short of them; user-scalable=no keeps a
+    double-tap during play from zooming the whole game.
+-->
+<meta name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+
+<meta name="theme-color" content="#2a1403">
+<title>Little Krishna's Butter Hunt</title>
+
+<style>
+    /*
+        The browser's default 8px body margin left the canvas at 96% of the
+        screen on every side - a hairline of background all the way round,
+        which on a phone reads as the game not quite fitting.
+    */
+    html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #2a1403;
+        overscroll-behavior: none;
+    }
+
+    /* Stops a long press on the canvas offering to select or copy it */
+    body {
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-touch-callout: none;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    #game-container {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    #game-container canvas {
+        display: block;
+    }
+</style>
+</head>
+
 <body>
 
 <div id="game-container"></div>

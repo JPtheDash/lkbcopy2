@@ -62,7 +62,9 @@ ASSETS = {
     "items/hazard_pot.png": (72, False),
     "fx/spark.png": (44, False),
 
-    "ui/logo.png": (430, True),
+    # Not quantized: the title is one long gold gradient across every letter,
+    # and 256 colours band it visibly where a flat-coloured button does not.
+    "ui/logo.png": (430, False),
     "ui/settings_panel.png": (560, True),
     "ui/level_banner.png": (520, True),
     "ui/star_panel.png": (480, True),
