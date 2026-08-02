@@ -44,6 +44,9 @@ export default class LevelCompleteScene extends Phaser.Scene{
 
     create(data){
 
+        // Back out of the climb's music now the level is over
+        AudioManager.startMusic(this, "menu");
+
         this.add.image(GAME_WIDTH/2, GAME_HEIGHT/2, "homeBackground")
             .setDisplaySize(GAME_WIDTH, GAME_HEIGHT)
             .setDepth(-10);

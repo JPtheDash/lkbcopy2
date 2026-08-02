@@ -6,6 +6,7 @@ import wallTile from "../assets/backgrounds/wall_tile.jpg";
 import roomBase from "../assets/backgrounds/room_base.jpg";
 import butterPot from "../assets/items/butter_pot.png";
 import butterDrop from "../assets/items/butter_drop.png";
+import krishnaSitting from "../assets/ui/krishna_happy_butter.png";
 import platformImg from "../assets/platforms/platform.png";
 import platformWood from "../assets/platforms/platform_wood.png";
 import platformStone from "../assets/platforms/platform_stone.png";
@@ -82,8 +83,14 @@ const COYOTE_MS = 120;
 const JUMP_BUFFER_MS = 180;
 
 // The frame is a little taller than the drawing inside it, so this is not
-// Krishna's apparent height - it works out at about 185px on screen.
-const KRISHNA_HEIGHT = 196;
+// Krishna's apparent height - it works out at about 216px on screen.
+const KRISHNA_HEIGHT = 230;
+
+// Transparent rows underneath the feet in every standing frame, measured off
+// the sheet. Without allowing for them the collision pad sits flush with the
+// bottom of the frame, which is below the drawing, and Krishna hovers a few
+// pixels over every surface he stands on.
+const FOOT_INSET = 3;
 
 // The collision box is a small pad under the feet, given in on-screen px so
 // it survives the art being re-exported at a different size. Sized to match
@@ -91,11 +98,15 @@ const KRISHNA_HEIGHT = 196;
 const BODY_WIDTH = 52;
 const BODY_HEIGHT = 22;
 
-const BUTTER_HEIGHT = 80;
+const BUTTER_HEIGHT = 130;
 const DROP_HEIGHT = 52;
 
 // Below this Krishna is drifting to a stop under drag, not running
 const RUN_ANIM_THRESHOLD = 30;
+
+// How long he sits eating before the result screen takes over. Long enough
+// to register as an ending, short enough not to be in the way on a replay.
+const WIN_OUTRO_MS = 1900;
 
 // The background is a tile fixed to the camera whose offset is driven by the
 // camera's own scroll, so it parallaxes forever without needing art as tall
@@ -121,6 +132,7 @@ export default class GameScene extends Phaser.Scene {
         loadImage(this, "platform-cloud", platformCloud);
         loadImage(this, "butter", butterPot);
         loadImage(this, "butterDrop", butterDrop);
+        loadImage(this, "krishnaSitting", krishnaSitting);
         loadImage(this, "spark", sparkImg);
         loadImage(this, "hintSwipe", hintSwipeImg);
         loadImage(this, "hintHand", hintHandImg);
@@ -136,7 +148,7 @@ export default class GameScene extends Phaser.Scene {
 
     create(data) {
 
-        AudioManager.startMusic(this);
+        AudioManager.startMusic(this, "game");
 
         this.level = data.level || 1;
 
@@ -271,8 +283,10 @@ export default class GameScene extends Phaser.Scene {
         const bw = BODY_WIDTH / this.krishna.scaleX;
         const bh = BODY_HEIGHT / this.krishna.scaleY;
 
+        // Lifted by the empty rows under the feet, so what rests on a
+        // platform is the drawing rather than the bottom edge of the frame.
         this.krishna.body.setSize(bw, bh);
-        this.krishna.body.setOffset((tw - bw)/2, th - bh);
+        this.krishna.body.setOffset((tw - bw)/2, th - bh - FOOT_INSET);
 
         this.spawnY = this.krishna.y;
 
@@ -299,6 +313,17 @@ export default class GameScene extends Phaser.Scene {
         // Butter
         //-------------------------
 
+        this.makeGlowTexture();
+
+        // The prize is what the whole climb is aimed at, so it is lit from
+        // behind and drawn large enough to read from the bottom of the level.
+        this.butterGlow = this.add.image(
+            levelConfig.butter[0], levelConfig.butter[1], "glow"
+        )
+            .setBlendMode(Phaser.BlendModes.ADD)
+            .setDisplaySize(BUTTER_HEIGHT * 2.6, BUTTER_HEIGHT * 2.6)
+            .setDepth(-1);
+
         this.butter = this.physics.add.staticImage(
             levelConfig.butter[0],
             levelConfig.butter[1],
@@ -310,9 +335,20 @@ export default class GameScene extends Phaser.Scene {
         this.butter.refreshBody();
 
         this.tweens.add({
-            targets: this.butter,
-            y: this.butter.y - 12,
+            targets: [this.butter, this.butterGlow],
+            y: levelConfig.butter[1] - 12,
             duration: 1100,
+            yoyo: true,
+            repeat: -1,
+            ease: "Sine.easeInOut"
+        });
+
+        // Breathing light, offset from the bob so the two never beat together
+        this.tweens.add({
+            targets: this.butterGlow,
+            alpha: { from: 0.55, to: 1 },
+            scale: this.butterGlow.scale * 1.12,
+            duration: 900,
             yoyo: true,
             repeat: -1,
             ease: "Sine.easeInOut"
@@ -630,9 +666,17 @@ export default class GameScene extends Phaser.Scene {
 
         if(type === "moving"){
 
+            // Swing centred on the designed position rather than starting
+            // there. Running from x to x + MOVING_RANGE put the ledge an
+            // average of half a range right of where the level was laid out,
+            // and a whole range out at the extreme - which on the wider
+            // levels pushed the jump onto it to within a few pixels of the
+            // measured envelope, while the ledge was moving away.
+            plank.x = x - MOVING_RANGE/2;
+
             this.tweens.add({
                 targets: plank,
-                x: x + MOVING_RANGE,
+                x: x + MOVING_RANGE/2,
                 duration: MOVING_DURATION,
                 yoyo: true,
                 repeat: -1,
@@ -757,6 +801,40 @@ export default class GameScene extends Phaser.Scene {
             duration: 750,
             onComplete: () => label.destroy()
         });
+
+    }
+
+    //------------------------------------------------
+
+    /**
+     * A soft radial falloff, built once and reused as an additive halo.
+     *
+     * Drawn as a stack of translucent circles rather than loaded as art: a
+     * gradient PNG large enough not to band would cost more than the rest of
+     * the level's textures put together, and this is a handful of fills.
+     */
+    makeGlowTexture(){
+
+        if(this.textures.exists("glow")){
+
+            return;
+
+        }
+
+        const size = 128;
+        const rings = 24;
+
+        const g = this.add.graphics();
+
+        for(let i = rings; i > 0; i--){
+
+            g.fillStyle(0xffd98a, 0.055);
+            g.fillCircle(size/2, size/2, (size/2) * (i / rings));
+
+        }
+
+        g.generateTexture("glow", size, size);
+        g.destroy();
 
     }
 
@@ -976,6 +1054,15 @@ export default class GameScene extends Phaser.Scene {
 
     //------------------------------------------------
 
+    /**
+     * Reaching the butter used to cut straight to the result screen, which
+     * landed mid-jump - the level ended on the frame he touched the pot, so
+     * it read as the game closing on him rather than as him winning.
+     *
+     * Now he takes the pot, sits down with it and eats, and only then does
+     * the screen change. The scoring is settled the moment he touches it;
+     * everything after that is the payoff.
+     */
     win(){
 
         if(this.isGameOver){
@@ -988,17 +1075,101 @@ export default class GameScene extends Phaser.Scene {
 
         this.physics.pause();
         this.gameTimer.remove();
+        this.dismissHint();
+        this.pauseButton.setVisible(false);
 
         AudioManager.play(this,"collect");
 
-        this.scene.start(
-            "LevelCompleteScene",
-            {
-                stars: getStars(this.timeLeft, this.totalTime),
-                timeLeft: this.timeLeft,
-                level: this.level
-            }
+        const result = {
+            stars: getStars(this.timeLeft, this.totalTime),
+            timeLeft: this.timeLeft,
+            level: this.level
+        };
+
+        // Hold him in frame - the camera is still biased upward for climbing
+        this.cameras.main.stopFollow();
+
+        this.cameras.main.pan(
+            this.krishna.x, this.krishna.y, 500, "Sine.easeInOut"
         );
+
+        const restY = this.krishna.body.bottom;
+
+        // The pot leaves its perch and comes to him
+        this.tweens.add({
+            targets: [this.butter, this.butterGlow],
+            x: this.krishna.x,
+            y: restY - KRISHNA_HEIGHT * 0.35,
+            duration: 450,
+            ease: "Quad.easeIn"
+        });
+
+        this.time.delayedCall(450, ()=>{
+
+            this.butter.destroy();
+            this.butterGlow.destroy();
+
+            this.burst(this.krishna.x, restY - KRISHNA_HEIGHT * 0.35, 12);
+            AudioManager.play(this,"star");
+
+            this.sitAndEat(restY, result);
+
+        });
+
+    }
+
+    //------------------------------------------------
+
+    /**
+     * Swaps the standing sprite for the sitting pose and lets him eat.
+     *
+     * The sitting art is a different drawing, not a frame of the run sheet,
+     * so it is anchored on the ground line he is standing on rather than on
+     * his centre - otherwise he sinks into the platform as he sits.
+     */
+    sitAndEat(restY, result){
+
+        this.krishnaArt.setVisible(false);
+
+        const sitting = fitHeight(
+            this.add.image(this.krishna.x, restY, "krishnaSitting"),
+            KRISHNA_HEIGHT * 0.92
+        ).setDepth(this.krishnaArt.depth);
+
+        sitting.setY(restY - sitting.displayHeight/2);
+
+        const resting = sitting.scale;
+
+        sitting.setScale(resting * 0.6);
+
+        this.tweens.add({
+            targets: sitting,
+            scale: resting,
+            duration: 320,
+            ease: "Back.Out",
+            onComplete: ()=>{
+
+                // Three small dips - eating, rather than a single pose held
+                // until the screen changes
+                this.tweens.add({
+                    targets: sitting,
+                    scaleY: resting * 0.94,
+                    duration: 180,
+                    yoyo: true,
+                    repeat: 2,
+                    ease: "Sine.easeInOut"
+                });
+
+                this.time.delayedCall(260, ()=> AudioManager.play(this,"collect"));
+
+            }
+        });
+
+        this.time.delayedCall(WIN_OUTRO_MS, ()=>{
+
+            this.scene.start("LevelCompleteScene", result);
+
+        });
 
     }
 

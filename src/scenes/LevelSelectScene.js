@@ -41,7 +41,7 @@ export default class LevelSelectScene extends Phaser.Scene {
 
     create() {
 
-        AudioManager.startMusic(this);
+        AudioManager.startMusic(this, "menu");
 
         this.add.image(GAME_WIDTH/2, GAME_HEIGHT/2, "background")
             .setDisplaySize(GAME_WIDTH, GAME_HEIGHT);

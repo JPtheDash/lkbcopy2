@@ -8,7 +8,8 @@ import starSfx from "../assets/audio/star.wav";
 import winSfx from "../assets/audio/win.wav";
 import loseSfx from "../assets/audio/lose.wav";
 import clickSfx from "../assets/audio/click.wav";
-import musicTrack from "../assets/audio/music.ogg";
+import menuTrack from "../assets/audio/menu_music.ogg";
+import gameTrack from "../assets/audio/game_music.ogg";
 
 const SOUNDS = {
     jump: jumpSfx,
@@ -30,8 +31,18 @@ const VOLUME = {
     click: 0.45
 };
 
-const MUSIC_KEY = "bgm";
+// Two tracks: one for the menus, one for the climb. Named rather than
+// numbered so a scene asks for the mood it wants, not for a file.
+const MUSIC = {
+    menu: { key: "bgm-menu", url: menuTrack },
+    game: { key: "bgm-game", url: gameTrack }
+};
+
 const MUSIC_VOLUME = 0.35;
+
+// Long enough to hear as a change of scene, short enough that starting a
+// level does not begin with silence.
+const MUSIC_FADE_MS = 600;
 
 export default class AudioManager {
 
@@ -43,7 +54,11 @@ export default class AudioManager {
 
         });
 
-        loadAudio(scene, MUSIC_KEY, musicTrack);
+        Object.values(MUSIC).forEach(({key,url})=>{
+
+            loadAudio(scene, key, url);
+
+        });
 
     }
 
@@ -70,27 +85,23 @@ export default class AudioManager {
     //------------------------------------------------
     // Music
     //
-    // The track is owned by the global sound manager rather than a scene, so
-    // it keeps playing across scene changes instead of restarting on every
-    // screen. Call startMusic from any scene that can be entered directly.
+    // Tracks are owned by the global sound manager rather than by a scene, so
+    // moving between screens does not restart the music. Every scene names
+    // the track it wants on entry; asking for the one already playing is a
+    // no-op, so walking the menus does not retrigger it.
     //------------------------------------------------
 
-    static startMusic(scene){
+    static startMusic(scene, track = this.wantedTrack || "menu"){
 
-        if(!scene.cache.audio.exists(MUSIC_KEY)){
+        const wanted = MUSIC[track];
+
+        if(!wanted || !scene.cache.audio.exists(wanted.key)){
 
             return;
 
         }
 
-        if(!this.music){
-
-            this.music = scene.sound.add(MUSIC_KEY,{
-                loop: true,
-                volume: MUSIC_VOLUME
-            });
-
-        }
+        this.wantedTrack = track;
 
         if(!SaveManager.isMusicOn()){
 
@@ -98,11 +109,47 @@ export default class AudioManager {
 
         }
 
-        if(!this.music.isPlaying){
+        if(this.music && this.playing === track){
 
-            this.music.play();
+            if(!this.music.isPlaying){
+
+                this.music.play();
+
+            }
+
+            return;
 
         }
+
+        // Cutting from one track straight to the other is jarring at the top
+        // of a level, so the outgoing one is faded and only then stopped.
+        if(this.music && this.music.isPlaying){
+
+            const outgoing = this.music;
+
+            scene.tweens.add({
+                targets: outgoing,
+                volume: 0,
+                duration: MUSIC_FADE_MS,
+                onComplete: ()=> outgoing.stop()
+            });
+
+        }
+
+        this.music = scene.sound.add(wanted.key,{
+            loop: true,
+            volume: 0
+        });
+
+        this.playing = track;
+
+        this.music.play();
+
+        scene.tweens.add({
+            targets: this.music,
+            volume: MUSIC_VOLUME,
+            duration: MUSIC_FADE_MS
+        });
 
     }
 

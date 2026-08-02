@@ -50,6 +50,7 @@ const state = () => page.evaluate(() => {
     return {
         x: Math.round(s.krishna.x),
         y: Math.round(s.krishna.y),
+        feet: Math.round(s.krishna.body.bottom),
         grounded: s.krishna.body.blocked.down || s.krishna.body.touching.down,
         timeLeft: s.timeLeft,
         over: s.isGameOver
@@ -150,11 +151,14 @@ for (let level = 1; level <= 5; level++) {
         }
 
         // Nearest thing above him: a platform, or the butter at the very top.
-        // Krishna's origin sits ~122px above the centre of whatever he is
-        // standing on, so compare in that frame or the next platform up looks
-        // like it is below him and gets skipped.
+        //
+        // Measured from his feet, not from his origin. The origin is the
+        // centre of the sprite frame, so its distance to the ground depends
+        // on how tall the character art is - tuning a margin against it means
+        // the bot silently starts skipping platforms the next time the
+        // character is resized, which looks exactly like a broken level.
         const above = targets
-            .filter(([, py]) => py < cur.y + 60)
+            .filter(([, py]) => py < cur.feet - 40)
             .sort((a, b) => b[1] - a[1])[0];
 
         const [tx] = above || targets[targets.length - 1];

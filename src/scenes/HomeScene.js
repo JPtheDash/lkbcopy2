@@ -45,7 +45,7 @@ export default class HomeScene extends Phaser.Scene {
 
     create() {
 
-        AudioManager.startMusic(this);
+        AudioManager.startMusic(this, "menu");
 
         // Background
         this.add.image(GAME_WIDTH/2, GAME_HEIGHT/2, "homeBg")
@@ -91,8 +91,8 @@ export default class HomeScene extends Phaser.Scene {
         createKrishnaAnimations(this);
 
         fitHeight(
-            this.add.sprite(GAME_WIDTH/2, 640, KRISHNA_KEY, 0),
-            350
+            this.add.sprite(GAME_WIDTH/2, 660, KRISHNA_KEY, 0),
+            470
         ).play("krishna-idle");
 
         // Play button
