@@ -100,7 +100,30 @@ async function swipeAndSettle(dx, dy) {
 
 let failed = 0;
 
-for (let level = 1; level <= 5; level++) {
+// Walks whatever the level table holds rather than a hard-coded 5, so adding
+// a level cannot quietly go untested. The table is only attached once a
+// GameScene has run, so one has to be started before it can be counted.
+await bootGame();
+
+await page.evaluate(() => {
+    const g = window.__game;
+    g.scene.getScenes(true).forEach(s => s.scene.stop());
+    g.scene.start("GameScene", { level: 1, noMother: true });
+});
+
+await page.waitForFunction(
+    () => window.__game.scene.getScene("GameScene").__allLevels,
+    null,
+    { timeout: 15000 }
+);
+
+const LEVEL_COUNT = await page.evaluate(
+    () => window.__game.scene.getScene("GameScene").__allLevels.length
+);
+
+console.log(`walking ${LEVEL_COUNT} levels\n`);
+
+for (let level = 1; level <= LEVEL_COUNT; level++) {
 
     if (level > 1) await freshPage();
 
@@ -109,7 +132,7 @@ for (let level = 1; level <= 5; level++) {
     await page.evaluate(l => {
         const g = window.__game;
         g.scene.getScenes(true).forEach(s => s.scene.stop());
-        g.scene.start("GameScene", { level: l });
+        g.scene.start("GameScene", { level: l, noMother: true });
     }, level);
 
     await page.waitForTimeout(1000);

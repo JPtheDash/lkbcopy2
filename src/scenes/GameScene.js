@@ -13,6 +13,7 @@ import platformStone from "../assets/platforms/platform_stone.png";
 import platformCracked from "../assets/platforms/platform_cracked.png";
 import platformCloud from "../assets/platforms/platform_cloud.png";
 import sparkImg from "../assets/fx/spark.png";
+import hidePotImg from "../assets/items/hazard_pot.png";
 import hintSwipeImg from "../assets/ui/hint_swipe.png";
 import hintHandImg from "../assets/ui/hint_hand.png";
 import pauseButtonImg from "../assets/ui/pause_button.png";
@@ -23,6 +24,7 @@ import getStars from "../ui/StarReward";
 import AudioManager from "../managers/AudioManager";
 import LevelManager from "../managers/LevelManager";
 import Levels from "../data/levels";
+import MotherWatch from "../game/MotherWatch";
 import { fitWidth, fitHeight, GAME_WIDTH, GAME_HEIGHT, WORLD_HEIGHT, FLOOR_Y } from "../ui/layout";
 
 //-------------------------
@@ -116,6 +118,21 @@ const RUN_ANIM_THRESHOLD = 30;
 // to register as an ending, short enough not to be in the way on a replay.
 const WIN_OUTRO_MS = 1900;
 
+// The pot he hides behind. Tall enough to cover him when he ducks, small
+// enough to read as part of the room - at 130 they were larger than the
+// ledges they stood on and the level looked like a pottery shelf.
+const HIDE_POT_HEIGHT = 112;
+
+// How close he has to be to count as behind it. A little wider than the pot
+// itself, so it is judged on reaching cover rather than on hitting a mark.
+const HIDE_TOLERANCE = 60;
+
+// Krishna is 216 tall and the pot is 112, so standing behind one hides
+// nothing. Ducking is what makes cover work - and it is why the pot can stay
+// small enough to read as part of the room instead of towering over the
+// ledge it stands on.
+const DUCK_SCALE = 0.46;
+
 // The background is a tile fixed to the camera whose offset is driven by the
 // camera's own scroll, so it parallaxes forever without needing art as tall
 // as the level.
@@ -142,6 +159,7 @@ export default class GameScene extends Phaser.Scene {
         loadImage(this, "butterDrop", butterDrop);
         loadImage(this, "krishnaSitting", krishnaSitting);
         loadImage(this, "spark", sparkImg);
+        loadImage(this, "hidePot", hidePotImg);
         loadImage(this, "hintSwipe", hintSwipeImg);
         loadImage(this, "hintHand", hintHandImg);
 
@@ -556,6 +574,21 @@ export default class GameScene extends Phaser.Scene {
 
         this.createHint();
 
+        //-------------------------
+        // Yashoda
+        //-------------------------
+
+        // Tools set __noMother to measure the climb on its own. Being caught
+        // is a fail state, so leaving her running would make the reachability
+        // tests report level design faults that are really just a bot with no
+        // instinct for hiding.
+        if(!this.__noMother && !data.noMother){
+
+            this.mother = new MotherWatch(this, levelConfig.mother);
+            this.mother.start();
+
+        }
+
     }
 
     //------------------------------------------------
@@ -637,6 +670,130 @@ export default class GameScene extends Phaser.Scene {
 
     //------------------------------------------------
 
+    /**
+     * A pot big enough for a small boy to duck behind.
+     *
+     * Fakes are drawn from the same texture at the same size. They are not
+     * marked in any way the player can read at a glance - a tell would remove
+     * the decision, and levels only introduce them once the mechanic itself
+     * is understood, never two in a row, so a real one is always a jump away.
+     */
+    createHideSpot(spec, plank){
+
+        const pot = fitHeight(
+            this.add.image(spec.x, 0, "hidePot"),
+            HIDE_POT_HEIGHT
+        );
+
+        // Standing on the plank, not floating over it
+        pot.setY(plank.y - plank.displayHeight/2 - pot.displayHeight/2 + 12);
+
+        // In front of Krishna, so ducking behind it actually looks like it
+        pot.setDepth(20);
+
+        return { pot, real: spec.real, x: spec.x };
+
+    }
+
+    //------------------------------------------------
+
+    /**
+     * True when Krishna is behind a real pot with both feet down.
+     *
+     * Grounded matters: passing through a pot's column mid-jump is not
+     * hiding, and without the check a lucky arc would save the player from a
+     * visit they never reacted to.
+     */
+    isHidden(){
+
+        const grounded =
+            this.krishna.body.blocked.down ||
+            this.krishna.body.touching.down;
+
+        if(!grounded){
+
+            return false;
+
+        }
+
+        return this.platforms.some(p => {
+
+            if(!p.hide || !p.hide.real){
+
+                return false;
+
+            }
+
+            const pot = p.hide.pot;
+
+            // Level with the pot, not on some other ledge in the same column
+            if(Math.abs(this.krishna.body.bottom - pot.getBounds().bottom) > 40){
+
+                return false;
+
+            }
+
+            return Math.abs(this.krishna.x - pot.x) <= HIDE_TOLERANCE;
+
+        });
+
+    }
+
+    //------------------------------------------------
+
+    /** Crouches behind cover, and stands back up when he leaves it. */
+    setDucking(on){
+
+        if(on === this.ducking){
+
+            return;
+
+        }
+
+        this.ducking = on;
+
+        this.tweens.killTweensOf(this.krishnaArt);
+
+        this.tweens.add({
+            targets: this.krishnaArt,
+            scaleY: this.krishnaScale * (on ? DUCK_SCALE : 1),
+            scaleX: this.krishnaScale * (on ? 1.06 : 1),
+            duration: 160,
+            ease: "Quad.easeOut"
+        });
+
+    }
+
+    //------------------------------------------------
+
+    /** Lifts the pots while she is on her way, so they read as the answer. */
+    showHideSpots(on){
+
+        this.platforms.forEach(p => {
+
+            if(!p.hide){
+
+                return;
+
+            }
+
+            this.tweens.killTweensOf(p.hide.pot);
+
+            this.tweens.add({
+                targets: p.hide.pot,
+                scale: p.hide.pot.scale * (on ? 1.12 : 1 / 1.12),
+                duration: 220,
+                yoyo: on,
+                repeat: on ? -1 : 0,
+                ease: "Sine.easeInOut"
+            });
+
+        });
+
+    }
+
+    //------------------------------------------------
+
     createPlatform(spec, index){
 
         const { x, y, type } = spec;
@@ -674,6 +831,12 @@ export default class GameScene extends Phaser.Scene {
             dx: 0,
             crumbling: false
         };
+
+        if(spec.hide){
+
+            platform.hide = this.createHideSpot(spec.hide, plank);
+
+        }
 
         if(type === "moving"){
 
@@ -1086,6 +1249,7 @@ export default class GameScene extends Phaser.Scene {
 
         this.physics.pause();
         this.gameTimer.remove();
+        this.mother?.stop();
         this.dismissHint();
         this.pauseButton.setVisible(false);
 
@@ -1308,12 +1472,30 @@ export default class GameScene extends Phaser.Scene {
 
     //------------------------------------------------
 
-    gameOver(){
+    caughtByMother(){
+
+        if(this.isGameOver){
+
+            return;
+
+        }
+
+        this.cameras.main.shake(320, 0.012);
+
+        this.gameOver("MOTHER SAW YOU!");
+
+    }
+
+    //------------------------------------------------
+
+    gameOver(reason = "TIME'S UP!"){
 
         this.isGameOver = true;
 
         this.physics.pause();
         this.gameTimer.remove();
+        this.mother?.stop();
+        this.dismissHint();
 
         this.pauseButton.setVisible(false);
 
@@ -1328,10 +1510,10 @@ export default class GameScene extends Phaser.Scene {
         this.add.text(
             GAME_WIDTH/2,
             520,
-            "TIME'S UP!",
+            reason,
             {
                 fontFamily: "Arial",
-                fontSize: "60px",
+                fontSize: "56px",
                 color: "#FFFFFF",
                 fontStyle: "bold"
             }
@@ -1358,6 +1540,8 @@ export default class GameScene extends Phaser.Scene {
             return;
 
         }
+
+        this.mother?.update();
 
         const now = this.time.now;
 
@@ -1489,7 +1673,15 @@ export default class GameScene extends Phaser.Scene {
 
         this.wasGrounded = grounded;
 
-        this.krishnaArt.setPosition(this.krishna.x, this.krishna.y);
+        // Anchored by the feet, not the centre. Any vertical squash - ducking
+        // behind a pot, or the landing squash - would otherwise lift him off
+        // the surface he is standing on by half of whatever it removed.
+        this.krishnaArt.setPosition(
+            this.krishna.x,
+            this.krishna.y + (KRISHNA_HEIGHT - this.krishnaArt.displayHeight)/2
+        );
+
+        this.setDucking(this.isHidden());
 
         this.checkButter();
 

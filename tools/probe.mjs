@@ -29,7 +29,7 @@ async function measure(level, dx, dy, clearPlatforms = false, alignUnderPlatform
     await page.evaluate(l => {
         const g = window.__game;
         g.scene.getScenes(true).forEach(s => s.scene.stop());
-        g.scene.start("GameScene", { level: l });
+        g.scene.start("GameScene", { level: l, noMother: true });
     }, level);
 
     await page.waitForTimeout(1000);
