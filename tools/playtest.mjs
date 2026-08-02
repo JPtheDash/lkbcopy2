@@ -1,0 +1,216 @@
+/**
+ * Plays each level from the floor to the butter using real swipes, and fails
+ * if any level cannot actually be completed.
+ *
+ * The probe checks a single jump's envelope; this checks the whole climb,
+ * which is where level design mistakes actually bite.
+ *
+ *   node tools/playtest.mjs
+ */
+
+import { launch, newPage, GAME_URL } from "./browser.mjs";
+import { mkdirSync } from "fs";
+
+const URL = GAME_URL;
+const OUT = process.argv[2] || "/tmp/playtest";
+
+mkdirSync(OUT, { recursive: true });
+
+const errors = [];
+
+// A whole browser per level. The lean profile runs single-process and
+// accumulates enough memory over a five-level run that a later page boots
+// without ever reaching window.__game, which reads as a broken game rather
+// than the harness running out of room.
+let browser = await launch();
+let page = await newPage(browser, errors);
+
+async function freshPage() {
+    await browser.close();
+    browser = await launch();
+    page = await newPage(browser, errors);
+}
+
+/** The game object appears a tick after load, so nothing may touch it first. */
+async function bootGame() {
+    await page.goto(URL, { waitUntil: "networkidle" });
+    await page.waitForFunction("window.__game && window.__game.scene", null,
+                               { timeout: 20000 });
+    await page.waitForTimeout(600);
+}
+
+const state = () => page.evaluate(() => {
+    const g = window.__game;
+    const s = g.scene.getScene("GameScene");
+
+    if (!s || !s.scene.isActive() || !s.krishna || !s.krishna.body) {
+        return { gone: true, complete: g.scene.isActive("LevelCompleteScene") };
+    }
+
+    return {
+        x: Math.round(s.krishna.x),
+        y: Math.round(s.krishna.y),
+        grounded: s.krishna.body.blocked.down || s.krishna.body.touching.down,
+        timeLeft: s.timeLeft,
+        over: s.isGameOver
+    };
+});
+
+const GROUNDED = `(() => {
+    const s = window.__game.scene.getScene("GameScene");
+    if (!s || !s.scene.isActive() || !s.krishna || !s.krishna.body) return null;
+    return s.krishna.body.blocked.down || s.krishna.body.touching.down;
+})()`;
+
+/**
+ * Swipe, wait for Krishna to actually leave the ground, then wait until he is
+ * standing again.
+ *
+ * Waiting only for "grounded" is wrong: he is still touching the floor on the
+ * frame the jump is issued, so the wait returns instantly and the next swipe
+ * fires mid-air, where it is silently rejected. That cascades into a bot that
+ * never climbs and looks exactly like a broken game.
+ */
+async function swipeAndSettle(dx, dy) {
+
+    await page.evaluate(([x, y]) => {
+        const s = window.__game.scene.getScene("GameScene");
+        if (s && s.krishna && s.krishna.body) s.handleSwipe(x, y);
+    }, [dx, dy]);
+
+    let launched = true;
+
+    try {
+        await page.waitForFunction(`${GROUNDED} !== true`, null, { timeout: 1200 });
+    } catch {
+        launched = false;   // jump was refused - he never left the floor
+    }
+
+    try {
+        await page.waitForFunction(`${GROUNDED} !== false`, null, { timeout: 6000 });
+    } catch {
+        /* hung in the air - caller reports it */
+    }
+
+    await page.waitForTimeout(150);
+
+    return launched;
+}
+
+let failed = 0;
+
+for (let level = 1; level <= 5; level++) {
+
+    if (level > 1) await freshPage();
+
+    await bootGame();
+
+    await page.evaluate(l => {
+        const g = window.__game;
+        g.scene.getScenes(true).forEach(s => s.scene.stop());
+        g.scene.start("GameScene", { level: l });
+    }, level);
+
+    await page.waitForTimeout(1000);
+
+    // Give the timer plenty of room - we are testing reachability, not speed
+    await page.evaluate(() => {
+        const s = window.__game.scene.getScene("GameScene");
+        s.timeLeft = 9999;
+    });
+
+    const targets = await page.evaluate(() => {
+        const s = window.__game.scene.getScene("GameScene");
+        // Level data holds {x, y, type}; flatten to pairs for the climb loop
+        return s.__levelPlatforms
+            .map(p => [p.x, p.y])
+            .sort((a, b) => b[1] - a[1])
+            .concat(s.butter ? [[s.butter.x, s.butter.y]] : []);
+    });
+
+    // Climb adaptively: always aim at the nearest platform above, rather than
+    // walking a fixed list. Krishna does not always land where the list
+    // expects, and a fixed list silently desynchronises from where he is.
+    const startY = (await state()).y;
+
+    let best = startY;
+    let stalls = 0;
+    let steps = 0;
+    let complete = false;
+
+    for (let move = 0; move < 40 && !complete; move++) {
+
+        const cur = await state();
+
+        if (cur.gone) {
+            complete = await page.evaluate(
+                () => window.__game.scene.isActive("LevelCompleteScene")
+            );
+            break;
+        }
+
+        // Nearest thing above him: a platform, or the butter at the very top.
+        // Krishna's origin sits ~122px above the centre of whatever he is
+        // standing on, so compare in that frame or the next platform up looks
+        // like it is below him and gets skipped.
+        const above = targets
+            .filter(([, py]) => py < cur.y + 60)
+            .sort((a, b) => b[1] - a[1])[0];
+
+        const [tx] = above || targets[targets.length - 1];
+
+        const dx = tx - cur.x;
+
+        await swipeAndSettle(
+            Math.abs(dx) < 70 ? 0 : (dx > 0 ? 80 : -80),
+            -80
+        );
+
+        const now = await state();
+        if (now.gone) {
+            complete = await page.evaluate(
+                () => window.__game.scene.isActive("LevelCompleteScene")
+            );
+            break;
+        }
+
+        if (now.y < best - 60) {
+            best = now.y;
+            steps++;
+            stalls = 0;
+        } else {
+            stalls++;
+        }
+
+        // Genuinely wedged rather than just fumbling one jump
+        if (stalls >= 8) break;
+    }
+
+    const end = await state();
+    const climbed = end.gone ? startY - best : startY - end.y;
+
+    if (complete) {
+        console.log(`level ${level}: COMPLETED  (${steps} platforms, climbed ${climbed}px)`);
+    } else {
+        failed++;
+        if (!end.gone) await page.screenshot({ path: `${OUT}/stuck-level${level}.png` });
+        console.log(
+            `level ${level}: FAILED - climbed ${climbed}px over ${steps} platforms` +
+            (end.gone ? "" : `, stalled at y=${end.y}  -> ${OUT}/stuck-level${level}.png`)
+        );
+    }
+}
+
+await browser.close();
+
+if (errors.length) {
+    console.error("\nCONSOLE ERRORS:");
+    [...new Set(errors)].forEach(e => console.error("  " + e));
+}
+
+if (failed || errors.length) {
+    console.error(`\n${failed} level(s) not completable`);
+    process.exit(1);
+}
+
+console.log("\nall levels completable");

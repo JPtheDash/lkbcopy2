@@ -1,71 +1,82 @@
 import Phaser from "phaser";
-import homeBackground from "../assets/backgrounds/home_background.png";
+import { loadImage } from "../ui/loader";
+import { loadKrishna, createKrishnaAnimations, KRISHNA_KEY } from "../ui/krishna";
+import AudioManager from "../managers/AudioManager";
+import homeBackground from "../assets/backgrounds/home_background.jpg";
 import logo from "../assets/ui/logo.png";
 import playButtonImg from "../assets/ui/play_button.png";
-import krishnaIdle from "../assets/characters/krishna_idle.png";
 import butterPot from "../assets/items/butter_pot.png";
 import settingsButton from "../assets/ui/settings_button.png";
 import settingsPanel from "../assets/ui/settings_panel.png";
 import settingsRow from "../assets/ui/settings_row.png";
 import toggleOn from "../assets/ui/toggle_on.png";
 import toggleOff from "../assets/ui/toggle_off.png";
+import iconMusic from "../assets/ui/icon_music.png";
+import iconSound from "../assets/ui/icon_sound.png";
+import iconLanguage from "../assets/ui/icon_language.png";
 import SettingsPanel from "../ui/SettingsPanel";
+import { fitWidth, fitHeight, GAME_WIDTH, GAME_HEIGHT } from "../ui/layout";
 
 export default class HomeScene extends Phaser.Scene {
+
     constructor() {
         super("HomeScene");
     }
 
     preload() {
-        this.load.image("homeBg", homeBackground);
-        this.load.image("butterPot", butterPot);
-        this.load.image("logo", logo);
-        this.load.image("krishna", krishnaIdle);
-        this.load.image("playButton", playButtonImg);
-        this.load.image("settingsButton", settingsButton);
-        this.load.image("settingsPanel", settingsPanel);
-        this.load.image("settingsRow", settingsRow);
-        this.load.image("toggleOn", toggleOn);
-        this.load.image("toggleOff", toggleOff);
+
+        AudioManager.preload(this);
+
+        loadImage(this, "homeBg", homeBackground);
+        loadImage(this, "butterPot", butterPot);
+        loadImage(this, "logo", logo);
+        loadKrishna(this);
+        loadImage(this, "playButton", playButtonImg);
+        loadImage(this, "settingsButton", settingsButton);
+        loadImage(this, "settingsPanel", settingsPanel);
+        loadImage(this, "settingsRow", settingsRow);
+        loadImage(this, "toggleOn", toggleOn);
+        loadImage(this, "toggleOff", toggleOff);
+        loadImage(this, "iconMusic", iconMusic);
+        loadImage(this, "iconSound", iconSound);
+        loadImage(this, "iconLanguage", iconLanguage);
 
     }
 
     create() {
 
-        this.settingsOpen = false;
+        AudioManager.startMusic(this);
 
         // Background
-        this.background = this.add.image(360, 640, "homeBg");
-        this.background.setDisplaySize(720, 1280);
-        this.background.setDepth(-100);
+        this.add.image(GAME_WIDTH/2, GAME_HEIGHT/2, "homeBg")
+            .setDisplaySize(GAME_WIDTH, GAME_HEIGHT)
+            .setDepth(-100);
+
+        // Warm scrim so the white UI text stays readable on the art
+        this.add.rectangle(
+            GAME_WIDTH/2, GAME_HEIGHT/2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.25
+        ).setDepth(-99);
 
         // Logo
-        this.logo = this.add.image(360, 220, "logo");
-        this.logo.setScale(0.45);
-        this.logo.setDepth(2);
+        this.logo = fitWidth(
+            this.add.image(GAME_WIDTH/2, 210, "logo"),
+            430
+        ).setDepth(2);
 
         this.tweens.add({
             targets: this.logo,
-            y: 210,
+            y: 198,
             duration: 1800,
             yoyo: true,
             repeat: -1,
             ease: "Sine.easeInOut"
         });
 
-        this.rope = this.add.graphics();
-
-        this.rope.lineStyle(6, 0xC8A46A, 1);
-
-        //butter pot
-        this.butterPot = this.add.image(
-            180,
-            340,
-            "butterPot"
-        );
-
-        this.butterPot.setScale(0.25);
-        this.butterPot.setDepth(1);
+        // Butter pot
+        this.butterPot = fitHeight(
+            this.add.image(160, 470, "butterPot"),
+            120
+        ).setDepth(1);
 
         this.tweens.add({
             targets: this.butterPot,
@@ -76,37 +87,23 @@ export default class HomeScene extends Phaser.Scene {
             ease: "Sine.easeInOut"
         });
 
-        //Krishna
-        this.krishna = this.add.image(
-            360,
-            670,
-            "krishna"
-        );
-        // this.tweens.add({
-        //     targets: this.krishna,
-        //     y: 1000,
-        //     duration: 1200,
-        //     yoyo: true,
-        //     repeat: -1,
-        //     ease: "Sine.easeInOut"
-        // });
+        // Krishna, breathing rather than posed
+        createKrishnaAnimations(this);
 
-        this.krishna.setScale(0.50);
+        fitHeight(
+            this.add.sprite(GAME_WIDTH/2, 640, KRISHNA_KEY, 0),
+            350
+        ).play("krishna-idle");
 
-        // Play Button
-        this.playButton = this.add.image(
-            360,
-            950,
-            "playButton"
-        );
-
-        this.playButton.setScale(0.42);
-        this.playButton.setInteractive({ useHandCursor: true });
+        // Play button
+        this.playButton = fitWidth(
+            this.add.image(GAME_WIDTH/2, 940, "playButton"),
+            280
+        ).setInteractive({ useHandCursor: true });
 
         this.tweens.add({
             targets: this.playButton,
-            scaleX: 0.44,
-            scaleY: 0.44,
+            scale: this.playButton.scale * 1.06,
             duration: 900,
             yoyo: true,
             repeat: -1,
@@ -114,19 +111,18 @@ export default class HomeScene extends Phaser.Scene {
         });
 
         this.playButton.on("pointerdown", () => {
+
+            AudioManager.play(this,"click");
+
             this.scene.start("LevelSelectScene");
+
         });
 
-        //setting
-        this.settingsButton = this.add.image(
-            650,
-            1180,
-            "settingsButton"
-        );
-
-        this.settingsButton.setScale(0.18);
-
-        this.settingsButton.setInteractive({ useHandCursor: true });
+        // Settings
+        this.settingsButton = fitWidth(
+            this.add.image(GAME_WIDTH - 80, GAME_HEIGHT - 90, "settingsButton"),
+            75
+        ).setInteractive({ useHandCursor: true });
 
         this.tweens.add({
             targets: this.settingsButton,
@@ -137,7 +133,10 @@ export default class HomeScene extends Phaser.Scene {
         });
 
         this.settingsPanel = new SettingsPanel(this);
+
         this.settingsButton.on("pointerdown", () => {
+
+            AudioManager.play(this,"click");
 
             this.settingsPanel.open();
 

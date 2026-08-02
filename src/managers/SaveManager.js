@@ -16,9 +16,44 @@ export default class SaveManager{
 
             unlockedLevel:1,
 
-            stars:{}
+            stars:{},
+
+            sound:true
 
         };
+
+    }
+
+    static isSoundOn(){
+
+        // Defaults to on for saves written before the setting existed
+        return this.load().sound !== false;
+
+    }
+
+    static setSoundOn(on){
+
+        const data=this.load();
+
+        data.sound=on;
+
+        this.save(data);
+
+    }
+
+    static isMusicOn(){
+
+        return this.load().music !== false;
+
+    }
+
+    static setMusicOn(on){
+
+        const data=this.load();
+
+        data.music=on;
+
+        this.save(data);
 
     }
 

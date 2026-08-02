@@ -28,3 +28,5 @@ dist/
 .vscode/
 .DS_Store
 *.log
+# Personal Claude Code settings; .claude/settings.json is the shared one
+.claude/settings.local.json

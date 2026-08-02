@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c ' *)",
+      "Bash(git checkout *)",
+      "Bash(rm -f src/assets/backgrounds/*.jpg && du -sh src/assets && ls src/assets/backgrounds/)",
+      "Bash(rm -f src/assets/backgrounds/*.jpg)",
+      "Bash(sed -i 's|\"characters/krishna_idle.png\": \\(80, False\\),|\"characters/krishna_idle.png\": \\(110, False\\),|' tools/optimize_assets.py)",
+      "Bash(python3 -c \"import gdown; print\\(gdown.__version__\\)\")",
+      "Bash(curl -sI --max-time 20 https://drive.google.com/)",
+      "Bash(python3 -c \"import gdown; print\\('gdown', gdown.__version__\\)\")",
+      "Bash(gdown --folder --remaining-ok \"https://drive.google.com/drive/folders/1yRIuqKW46B9Vn9wd4D2nkF9QLTLPPTP0\")",
+      "Bash(gdown --folder \"https://drive.google.com/drive/folders/1yRIuqKW46B9Vn9wd4D2nkF9QLTLPPTP0\")",
+      "Bash(mv incoming/Assets/* incoming/ && rmdir incoming/Assets && python3 tools/install_assets.py)",
+      "Bash(python3 tools/install_assets.py --install)"
+    ],
+    "additionalDirectories": [
+      "/workspaces/codespaces-blank/src/assets/backgrounds",
+      "/workspaces/codespaces-blank/incoming/Assets"
+    ]
+  }
+}

@@ -1,5 +1,5 @@
-import Phaser from "phaser";
 import ToggleSwitch from "./ToggleSwitch";
+import { fitWidth } from "./layout";
 
 export default class SettingRow {
 
@@ -15,13 +15,28 @@ export default class SettingRow {
             "settingsRow"
         );
 
-        this.row.setScale(0.42);
+        fitWidth(this.row, 470);
 
         container.add(this.row);
 
+        // Rows that have art for their subject lead with it. The icon carries
+        // the meaning at a glance and the words confirm it, which also gives
+        // the language row something readable to someone who cannot yet read
+        // the language it is set to.
+        if(config.icon && scene.textures.exists(config.icon)){
+
+            this.icon = fitWidth(
+                scene.add.image(-168, config.y, config.icon),
+                58
+            );
+
+            container.add(this.icon);
+
+        }
+
         this.label = scene.add.text(
 
-            -210,
+            this.icon ? -128 : -185,
 
             config.y,
 
@@ -47,11 +62,13 @@ export default class SettingRow {
 
                 scene,
 
-                190,
+                150,
 
                 config.y,
 
-                true
+                config.value !== undefined ? config.value : true,
+
+                config.onChange
 
             );
 

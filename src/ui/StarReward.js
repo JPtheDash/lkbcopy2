@@ -1,12 +1,19 @@
-export default function getStars(timeLeft){
+// Stars are awarded on the fraction of the level's timer left, so the
+// thresholds hold for every level regardless of its length.
 
-    if(timeLeft >= 20){
+export default function getStars(timeLeft,totalTime){
+
+    const fraction = totalTime > 0
+        ? timeLeft / totalTime
+        : 0;
+
+    if(fraction >= 0.6){
 
         return 3;
 
     }
 
-    if(timeLeft >= 10){
+    if(fraction >= 0.3){
 
         return 2;
 

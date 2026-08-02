@@ -1,245 +1,305 @@
 import Phaser from "phaser";
+import { loadImage } from "../ui/loader";
+import AudioManager from "../managers/AudioManager";
+import LevelManager from "../managers/LevelManager";
+import SaveManager from "../managers/SaveManager";
 
 import happyKrishna from "../assets/ui/krishna_happy_butter.png";
 import starEmpty from "../assets/ui/star_empty.png";
-import nextButton from "../assets/ui/next_button.png";
 import starFull from "../assets/ui/star_full.png";
-import homeBackground from "../assets/backgrounds/home_background.png";
-import SaveManager from "../managers/SaveManager";
+import nextButton from "../assets/ui/next_button.png";
+import replayButtonImg from "../assets/ui/replay_button.png";
+import homeButtonImg from "../assets/ui/home_button.png";
+import levelBanner from "../assets/ui/level_banner.png";
+import starPanel from "../assets/ui/star_panel.png";
+import ribbonPerfect from "../assets/ui/ribbon_perfect.png";
+import homeBackground from "../assets/backgrounds/home_background.jpg";
+
+import { fitWidth, fitHeight, GAME_WIDTH, GAME_HEIGHT } from "../ui/layout";
+
+const STAR_DELAY = 400;
 
 export default class LevelCompleteScene extends Phaser.Scene{
 
     constructor(){
-
         super("LevelCompleteScene");
-
     }
 
     preload(){
 
-        this.load.image("happyKrishna",happyKrishna);
-        this.load.image("starEmpty",starEmpty);
-        this.load.image("starFull",starFull);
-        this.load.image("nextButton",nextButton);
-        this.load.image("homeBackground", homeBackground);
+        AudioManager.preload(this);
+
+        loadImage(this, "happyKrishna", happyKrishna);
+        loadImage(this, "starEmpty", starEmpty);
+        loadImage(this, "starFull", starFull);
+        loadImage(this, "nextButton", nextButton);
+        loadImage(this, "replayButton", replayButtonImg);
+        loadImage(this, "homeButton", homeButtonImg);
+        loadImage(this, "levelBanner", levelBanner);
+        loadImage(this, "starPanel", starPanel);
+        loadImage(this, "ribbon", ribbonPerfect);
+        loadImage(this, "homeBackground", homeBackground);
 
     }
 
-   create(data){
+    create(data){
 
-    this.add.image(
-        360,
-        640,
-        "homeBackground"
-    )
-    .setDisplaySize(720,1280)
-    .setDepth(-10);
+        this.add.image(GAME_WIDTH/2, GAME_HEIGHT/2, "homeBackground")
+            .setDisplaySize(GAME_WIDTH, GAME_HEIGHT)
+            .setDepth(-10);
 
-    SaveManager.saveStars(
-    data.level,
-    data.stars
-);
+        this.add.rectangle(
+            GAME_WIDTH/2, GAME_HEIGHT/2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.6
+        );
 
-    this.add.rectangle(
-        360,
-        640,
-        720,
-        1280,
-        0x000000,
-        0.65
-    );
+        SaveManager.saveStars(data.level, data.stars);
 
-    this.add.text(
-        360,
-        90,
-        "LEVEL COMPLETE!",
-        {
-            fontSize:"56px",
-            color:"#FFD54A",
-            fontStyle:"bold"
-        }
-    ).setOrigin(0.5);
+        AudioManager.play(this,"win");
 
-    //---------------------------------
-    // Happy Krishna
-    //---------------------------------
+        //---------------------------------
+        // Banner
+        //---------------------------------
 
-    const krishna = this.add.image(
-        360,
-        340,
-        "happyKrishna"
-    )
-    .setScale(0.55);
+        fitWidth(
+            this.add.image(GAME_WIDTH/2, 150, "levelBanner"),
+            500
+        );
 
-    this.tweens.add({
+        this.add.text(
+            GAME_WIDTH/2,
+            140,
+            `LEVEL ${data.level}`,
+            {
+                fontFamily: "Arial",
+                fontSize: "50px",
+                color: "#FFD54A",
+                fontStyle: "bold",
+                stroke: "#000000",
+                strokeThickness: 5
+            }
+        ).setOrigin(0.5);
 
-        targets: krishna,
+        //---------------------------------
+        // Happy Krishna
+        //---------------------------------
 
-        y: 348,
+        const krishna = fitHeight(
+            this.add.image(GAME_WIDTH/2, 450, "happyKrishna"),
+            330
+        );
 
-        duration:800,
+        this.tweens.add({
+            targets: krishna,
+            y: 440,
+            duration: 1200,
+            yoyo: true,
+            repeat: -1,
+            ease: "Sine.easeInOut"
+        });
 
-        yoyo:true,
+        //---------------------------------
+        // Stars
+        //---------------------------------
 
-        repeat:-1,
+        const panelY = 770;
 
-        ease:"Sine.easeInOut"
+        fitWidth(
+            this.add.image(GAME_WIDTH/2, panelY, "starPanel"),
+            460
+        );
 
-    });
+        // Sit above the small stars painted into the panel art
+        const starY = panelY - 30;
 
-    //---------------------------------
-    // Time Left
-    //---------------------------------
+        for(let i=0;i<3;i++){
 
-    this.add.text(
+            const x = GAME_WIDTH/2 - 120 + i * 120;
 
-        360,
+            fitWidth(
+                this.add.image(x, starY, "starEmpty"),
+                92
+            ).setTint(0xb9b0a2).setAlpha(0.95);
 
-        885,
+            if(i < data.stars){
 
-        `Time Left : ${data.timeLeft}s`,
+                const star = fitWidth(
+                    this.add.image(x, starY, "starFull"),
+                    92
+                );
 
-        {
+                const full = star.scale;
 
-            fontSize:"34px",
+                star.setScale(0);
 
-            color:"#FFFFFF"
+                this.time.delayedCall(i * STAR_DELAY, ()=>{
 
-        }
-
-    ).setOrigin(0.5);
-
-    //---------------------------------
-    // Stars
-    //---------------------------------
-
-    const delay = 450;
-
-    for(let i=0;i<3;i++){
-
-        const x = 240 + i * 120;
-        const y = 700;
-
-        this.add.image(
-            x,
-            y,
-            "starEmpty"
-        ).setScale(0.26);
-
-        if(i < data.stars){
-
-            const star = this.add.image(
-                x,
-                y,
-                "starFull"
-            );
-
-            star.setScale(0);
-
-            this.time.delayedCall(
-
-                i * delay,
-
-                ()=>{
+                    AudioManager.play(this,"star");
 
                     this.tweens.add({
 
-                        targets:star,
+                        targets: star,
 
-                        scale:0.42,
+                        scale: full,
 
-                        duration:350,
+                        duration: 350,
 
-                        ease:"Back.Out",
+                        ease: "Back.Out",
 
-                        onComplete:()=>{
+                        onComplete: ()=>{
 
                             this.tweens.add({
-
-                                targets:star,
-
-                                angle:10,
-
-                                duration:100,
-
-                                yoyo:true,
-
-                                repeat:1
-
+                                targets: star,
+                                angle: 10,
+                                duration: 100,
+                                yoyo: true,
+                                repeat: 1
                             });
 
                         }
 
                     });
 
-                }
+                });
 
-            );
+            }
 
         }
+
+        //---------------------------------
+        // Perfect run
+        //---------------------------------
+
+        // Three stars is the ceiling, so it gets something the other results
+        // do not - it lands after the last star, as the payoff for the run
+        // rather than as another label on the screen.
+        if(data.stars >= 3){
+
+            const ribbon = fitWidth(
+                this.add.image(GAME_WIDTH/2, panelY + 115, "ribbon"),
+                400
+            ).setAlpha(0);
+
+            const caption = this.add.text(
+                GAME_WIDTH/2,
+                panelY + 113,
+                "PERFECT!",
+                {
+                    fontFamily: "Arial",
+                    fontSize: "40px",
+                    color: "#FFF3C4",
+                    fontStyle: "bold",
+                    stroke: "#7A1010",
+                    strokeThickness: 6
+                }
+            ).setOrigin(0.5).setAlpha(0);
+
+            // fitWidth leaves the ribbon at whatever scale gave it 400px, so
+            // each target springs back to its own resting scale rather than
+            // to a shared 1 - which would snap the ribbon to full texture
+            // size the moment the tween started.
+            this.time.delayedCall(3 * STAR_DELAY + 200, ()=>{
+
+                AudioManager.play(this,"star");
+
+                [ribbon, caption].forEach(target => {
+
+                    const resting = target.scale;
+
+                    this.tweens.add({
+                        targets: target,
+                        alpha: 1,
+                        scale: { from: resting * 0.7, to: resting },
+                        duration: 420,
+                        ease: "Back.Out"
+                    });
+
+                });
+
+            });
+
+        }
+
+        //---------------------------------
+        // Next
+        //---------------------------------
+
+        const next = fitWidth(
+            this.add.image(GAME_WIDTH/2, 1005, "nextButton"),
+            300
+        ).setInteractive({ useHandCursor: true });
+
+        this.add.text(
+            GAME_WIDTH/2,
+            1000,
+            "NEXT",
+            {
+                fontFamily: "Arial",
+                fontSize: "38px",
+                color: "#FFFFFF",
+                fontStyle: "bold",
+                stroke: "#5A2D0C",
+                strokeThickness: 5
+            }
+        ).setOrigin(0.5);
+
+        this.tweens.add({
+            targets: next,
+            scale: next.scale * 1.06,
+            duration: 700,
+            yoyo: true,
+            repeat: -1,
+            ease: "Sine.easeInOut"
+        });
+
+        next.on("pointerdown",()=>{
+
+            AudioManager.play(this,"click");
+
+            const nextLevel = data.level + 1;
+
+            // Past the last level there is nothing to advance to
+            if(nextLevel > LevelManager.getCount()){
+
+                this.scene.start("LevelSelectScene");
+
+                return;
+
+            }
+
+            this.scene.start("GameScene",{ level: nextLevel });
+
+        });
+
+        //---------------------------------
+        // Replay / Home
+        //---------------------------------
+
+        const replay = fitWidth(
+            this.add.image(GAME_WIDTH/2 - 110, 1130, "replayButton"),
+            120
+        ).setInteractive({ useHandCursor: true });
+
+        replay.on("pointerdown",()=>{
+
+            AudioManager.play(this,"click");
+
+            this.scene.start("GameScene",{ level: data.level });
+
+        });
+
+        const home = fitWidth(
+            this.add.image(GAME_WIDTH/2 + 110, 1130, "homeButton"),
+            120
+        ).setInteractive({ useHandCursor: true });
+
+        home.on("pointerdown",()=>{
+
+            AudioManager.play(this,"click");
+
+            this.scene.start("HomeScene");
+
+        });
 
     }
-
-    //---------------------------------
-    // Next Button
-    //---------------------------------
-
-    const next = this.add.image(
-
-        360,
-
-        1080,
-
-        "nextButton"
-
-    )
-    .setScale(0.45);
-
-    next.setInteractive();
-
-    this.add.text(
-
-        360,
-
-        1070,
-
-        "NEXT",
-
-        {
-
-            fontSize:"34px",
-
-            color:"#FFFFFF",
-
-            fontStyle:"bold"
-
-        }
-
-    ).setOrigin(0.5);
-
-    this.tweens.add({
-
-        targets:next,
-
-        scale:0.50,
-
-        duration:700,
-
-        yoyo:true,
-
-        repeat:-1,
-
-        ease:"Sine.easeInOut"
-
-    });
-
-    next.on("pointerdown",()=>{
-
-        this.scene.start("GameScene");
-
-    });
-
-}
-
 
 }

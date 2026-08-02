@@ -1,11 +1,12 @@
-import Phaser from "phaser";
+import { fitWidth } from "./layout";
 
 export default class ToggleSwitch {
 
-    constructor(scene, x, y, initialState = true) {
+    constructor(scene, x, y, initialState = true, onChange = null) {
 
         this.scene = scene;
         this.state = initialState;
+        this.onChange = onChange;
 
         this.image = scene.add.image(
             x,
@@ -13,7 +14,7 @@ export default class ToggleSwitch {
             this.state ? "toggleOn" : "toggleOff"
         );
 
-        this.image.setScale(0.18);
+        fitWidth(this.image, 92);
 
         this.image.setInteractive({
             useHandCursor: true
@@ -37,11 +38,11 @@ export default class ToggleSwitch {
                 : "toggleOff"
         );
 
-    }
+        if(this.onChange){
 
-    getValue() {
+            this.onChange(this.state);
 
-        return this.state;
+        }
 
     }
 

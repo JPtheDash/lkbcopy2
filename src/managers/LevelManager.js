@@ -5,7 +5,7 @@ export default class LevelManager {
 
     static getLevels() {
 
-        const stars = SaveManager.loadStars();
+        const save = SaveManager.load();
 
         return Levels.map(level => {
 
@@ -13,13 +13,25 @@ export default class LevelManager {
 
                 ...level,
 
-                unlocked:
-                    level.id === 1 ||
-                    stars[level.id - 1] > 0
+                unlocked: level.id <= save.unlockedLevel,
+
+                stars: save.stars[level.id] || 0
 
             };
 
         });
+
+    }
+
+    static getLevel(id) {
+
+        return Levels.find(level => level.id === id) || Levels[0];
+
+    }
+
+    static getCount() {
+
+        return Levels.length;
 
     }
 

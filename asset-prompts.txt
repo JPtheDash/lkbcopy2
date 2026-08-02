@@ -1,0 +1,208 @@
+================================================================================
+LITTLE KRISHNA'S BUTTER HUNT - ASSET GENERATION PROMPTS
+================================================================================
+
+How to use this file:
+  1. Paste the STYLE PREAMBLE at the start of every prompt.
+    2. Paste the TECHNICAL RULES at the end of every prompt.
+      3. Then add the per-asset prompt.
+        4. Drop the result into the path shown, then run:
+         python3 tools/optimize_assets.py
+     That crops, resizes and compresses it to match the rest of the game.
+
+Why the technical rules matter (learned the hard way on the current art):
+  - The original assets were 1024-1536px for things drawn at 60-460px, so the
+    game shipped 63MB of pixels nobody could see.
+  - Worse, the subject sat in a huge transparent margin and was NOT centred
+    in it - the logo sat 89px above centre, the play button 68px. Every
+    position in code was therefore wrong, which is where the alignment drift
+    came from. Tight, centred framing avoids all of it.
+  - Buttons must ship WITHOUT baked-in text. The game draws the label so it
+    can be translated later.
+
+
+================================================================================
+STYLE PREAMBLE  (prepend to every prompt)
+================================================================================
+
+Mobile game art in a warm, polished 2.5D cartoon style, inspired by Indian
+folk art and the Little Krishna animated series. Soft volumetric lighting,
+rich saturated colours, gentle rim light, smooth painterly shading with clean
+readable silhouettes. Golden hour warmth, ornate gold filigree accents, deep
+blues and marigold oranges. Friendly and child-safe, high production value,
+mobile casual game quality.
+
+
+================================================================================
+TECHNICAL RULES  (append to every prompt)
+================================================================================
+
+Transparent background (PNG with alpha). The subject must FILL the frame edge
+to edge with no more than 2% empty margin, and be exactly centred. No drop
+shadow onto the background, no ground plane, no baked-in text or numbers, no
+watermark, no border frame. Single object, front-facing, orthographic-ish,
+centred composition.
+
+(For BACKGROUNDS only, replace the above with:)
+Opaque full-bleed illustration, vertical 9:16 composition, no characters,
+no text, no UI elements, no border.
+
+
+================================================================================
+PHASE 1 ASSETS - needed now
+================================================================================
+
+--------------------------------------------------------------------------------
+1. KRISHNA SPRITE SHEET  ->  src/assets/characters/krishna_sheet.png
+--------------------------------------------------------------------------------
+THE most valuable asset to replace. Krishna is currently one static PNG, so he
+never changes pose while running or jumping.
+
+Genera create as a SINGLE horizontal strip, 8 frames, each frame exactly 256x384px,
+total 2048x384px. Same character, same proportions, same palette, same camera
+distance in every frame. Feet on the bottom edge of each frame.
+
+  Frame 1-2  idle: standing, slight breathing bob, peacock feather in hair,
+             yellow dhoti, gold jewellery, small blue-skinned toddler
+  Frame 3-6  run cycle: four evenly spaced poses of a happy running child,
+             arms swinging, dhoti trailing
+  Frame 7    jump up: arms raised, legs tucked, body stretched slightly tall
+  Frame 8    fall: arms out for balance, legs reaching down
+
+Character: cheerful toddler Krishna, blue skin, big expressive eyes, black
+curly hair with a single peacock feather, yellow-gold dhoti, gold bangles and
+a beaded necklace.
+
+--------------------------------------------------------------------------------
+2. TALL CLIMBING BACKGROUND  ->  src/assets/backgrounds/room_tall.jpg
+--------------------------------------------------------------------------------
+The level is now several screens tall and scrolls upward, so the background
+needs to be tall and to TILE seamlessly at the top and bottom edges.
+
+Prompt: interior wall of a warm traditional Indian village home seen from
+floor to high ceiling. Tall vertical composition. Cream and terracotta
+plaster walls, carved wooden beams, hanging brass lanterns, small niches with
+clay pots, marigold garlands, a lattice window with soft daylight. The wall
+texture must continue naturally off the top and bottom edges so the image can
+be stacked vertically without a visible seam.
+
+Aspect ratio 9:32 (very tall), e.g. 720x2560.
+
+--------------------------------------------------------------------------------
+3. MUSIC / AMBIENCE  (audio, not image)
+--------------------------------------------------------------------------------
+For an AI music tool. A gentle looping background track, 30-45 seconds,
+seamless loop. Light Indian folk instrumentation - bamboo flute lead, soft
+tabla rhythm, tanpura drone, occasional finger cymbals. Playful, warm,
+unhurried, suitable for a children's mobile game. No vocals. Should sit
+quietly under sound effects.
+
+Save as src/assets/audio/music.ogg
+
+
+================================================================================
+PHASE 2 ASSETS - gameplay content
+================================================================================
+
+--------------------------------------------------------------------------------
+4. PLATFORM VARIANTS  ->  src/assets/platforms/platform_wood.png
+                          src/assets/platforms/platform_stone.png
+                          src/assets/platforms/platform_cloud.png
+--------------------------------------------------------------------------------
+Match the existing platform: a horizontal ledge roughly 4.5:1 wide, viewed
+slightly from below, with a flat clearly-readable top surface.
+
+  wood    carved dark teak shelf with gold inlay and small blue gems
+  stone   weathered carved sandstone ledge with lotus motif
+  cloud   stylised fluffy cloud platform with a flat top, soft gold rim light
+
+--------------------------------------------------------------------------------
+5. MOVING / BREAKING PLATFORM  ->  src/assets/platforms/platform_cracked.png
+--------------------------------------------------------------------------------
+Same shape and scale as the wooden platform but visibly cracked and unstable,
+splintered edges, a few chips falling away.
+
+--------------------------------------------------------------------------------
+6. HAZARD - SPINNING POT  ->  src/assets/items/hazard_pot.png
+--------------------------------------------------------------------------------
+A cracked clay pot with an angry painted face, small and round, clearly
+readable as a danger at 60px. Warm red-brown clay, chipped rim.
+
+--------------------------------------------------------------------------------
+7. COLLECTIBLE - BUTTER DROP  ->  src/assets/items/butter_drop.png
+--------------------------------------------------------------------------------
+A small glossy pat of fresh white butter with a soft golden glow, appetising
+and simple, readable at 40px. Reads as a minor pickup next to the big pot.
+
+--------------------------------------------------------------------------------
+8. FEATHER PICKUP  ->  src/assets/items/feather.png
+--------------------------------------------------------------------------------
+A single iridescent peacock feather, vertical, glowing softly, blues, greens
+and gold. Used as a bonus collectible.
+
+--------------------------------------------------------------------------------
+9. WORLD SELECT TILES  ->  src/assets/ui/world_vrindavan.png
+                           src/assets/ui/world_yamuna.png
+                           src/assets/ui/world_mathura.png
+--------------------------------------------------------------------------------
+Ornate square-ish medallion panels, gold filigree frame, each containing a
+small scene: a village courtyard, a riverbank with lotuses, a palace skyline.
+Same frame design across all three so they read as a set.
+
+
+================================================================================
+PHASE 3 ASSETS - polish
+================================================================================
+
+--------------------------------------------------------------------------------
+10. PARTICLE SPRITES  ->  src/assets/fx/spark.png
+                          src/assets/fx/dust.png
+                          src/assets/fx/star_burst.png
+--------------------------------------------------------------------------------
+Small simple soft-edged shapes on transparency, roughly 64x64, no detail:
+  spark       tiny four-point gold sparkle
+  dust        soft round pale-brown puff, used for landing dust
+  star_burst  small gold star with a soft glow, used on pickup
+
+--------------------------------------------------------------------------------
+11. LEVEL COMPLETE RIBBON  ->  src/assets/ui/ribbon_perfect.png
+--------------------------------------------------------------------------------
+A short ornate gold-and-red ribbon banner, empty in the middle (no text), for
+overlaying a "PERFECT!" label on a three-star result.
+
+--------------------------------------------------------------------------------
+12. TUTORIAL SWIPE HINT  ->  src/assets/ui/hint_swipe.png
+                             src/assets/ui/hint_hand.png
+--------------------------------------------------------------------------------
+  hint_swipe  a curved diagonal arrow sweeping up and to the right, soft
+              white with a gold edge, semi-transparent, no text
+  hint_hand   a simple stylised white hand cursor in a pointing pose
+
+--------------------------------------------------------------------------------
+13. PAUSE / SETTINGS ICON SET  ->  src/assets/ui/icon_music.png
+                                   src/assets/ui/icon_sound.png
+                                   src/assets/ui/icon_language.png
+--------------------------------------------------------------------------------
+Small round gold-rimmed icon buttons, matching the existing settings button.
+Simple glyph in the middle: a music note, a speaker, a globe. No text.
+
+
+================================================================================
+ASSETS THAT SHOULD BE REPLACED EVENTUALLY
+================================================================================
+
+  logo.png          currently reads "Litttle Krishna" - three T's. Regenerate
+                    the wordmark, or have the game draw the title as text.
+
+  star_empty.png    almost as bright as star_full, so an unearned star reads
+                    as earned. The game currently tints it down as a
+                    workaround. Regenerate as a clearly hollow/dull outline
+                    star, same silhouette and size as star_full.
+
+  next_button.png   ships with no label (correct) but so do replay/home, and
+                    all three read as similar gold roundels at small sizes.
+                    Consider distinct silhouettes.
+
+  level_button_locked.png
+                    contains no padlock, so the game overlays lock.png. Either
+                    bake the lock in and drop the overlay, or keep as is.

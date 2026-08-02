@@ -1,4 +1,7 @@
 import SettingRow from "./SettingRow";
+import { fitWidth } from "./layout";
+import SaveManager from "../managers/SaveManager";
+import AudioManager from "../managers/AudioManager";
 
 export default class SettingsPanel {
 
@@ -44,7 +47,7 @@ export default class SettingsPanel {
             "settingsPanel"
         );
 
-        this.panel.setScale(0.55);
+        fitWidth(this.panel, 560);
 
         this.container.add(this.panel);
 
@@ -73,7 +76,20 @@ export default class SettingsPanel {
             {
                 y: -170,
                 label: "Music",
-                type: "toggle"
+                icon: "iconMusic",
+                type: "toggle",
+                value: SaveManager.isMusicOn(),
+                onChange: on => {
+
+                    AudioManager.setMusicOn(on);
+
+                    if(on){
+
+                        AudioManager.startMusic(scene);
+
+                    }
+
+                }
             }
         );
 
@@ -86,7 +102,20 @@ export default class SettingsPanel {
             {
                 y: -40,
                 label: "Sound",
-                type: "toggle"
+                icon: "iconSound",
+                type: "toggle",
+                value: SaveManager.isSoundOn(),
+                onChange: on => {
+
+                    SaveManager.setSoundOn(on);
+
+                    if(on){
+
+                        AudioManager.play(scene,"click");
+
+                    }
+
+                }
             }
         );
 
@@ -98,12 +127,14 @@ export default class SettingsPanel {
             this.container,
             {
                 y: 90,
-                label: "Language"
+                label: "Language",
+                icon: "iconLanguage"
             }
         );
 
+        // Clear of the gem moulded into the right end of the row art
         this.languageValue = scene.add.text(
-            180,
+            128,
             90,
             "English",
             {
@@ -138,7 +169,7 @@ export default class SettingsPanel {
         );
 
         this.aboutArrow = scene.add.text(
-            190,
+            165,
             220,
             ">",
             {
