@@ -1,4 +1,4 @@
-package com.jpthedash.littlekrishnabutterhunt;
+package com.dijytal.littlekrishnasbutterhunt;
 
 import com.getcapacitor.BridgeActivity;
 

@@ -50,7 +50,7 @@ string players see and can say whatever you like.
 | | |
 |---|---|
 | Format | `.aab`, signed, `debuggable=false` |
-| `applicationId` | `com.jpthedash.littlekrishnabutterhunt` — a real domain, not `com.example.*` |
+| `applicationId` | `com.dijytal.littlekrishnasbutterhunt` — a real domain, not `com.example.*` |
 | Target API | 36, above Play's current floor |
 | Min API | 24 |
 | Permissions | `INTERNET` only. No ad ID, no location, no storage |
@@ -97,9 +97,11 @@ None of this lives in the bundle.
 - **Store listing.** Title, short and full description, plus:
   - app icon — `dist-store/play-icon-512.png`
   - phone screenshots — `dist-store/screenshots/` (Play wants at least two)
-  - **feature graphic, 1024×500** — not generated here; it is a designed
-    banner rather than something derived from the game, so it wants a real
-    pass rather than a script's.
+  - feature graphic, 1024×500 — `dist-store/play-feature-graphic.png`, from
+    `tools/build_feature_graphic.py`. It carries the title logo, and that
+    logo art reads "Litttle" with three t's; the typo is in the delivered
+    artwork, so it needs re-rendering before this goes on a listing.
+  - draft copy for every text field — `dist-store/listing.md`
 - **Countries, pricing, and a closed or internal test track** before
   production. Play now requires new personal developer accounts to run a
   closed test with testers before they can promote to production.

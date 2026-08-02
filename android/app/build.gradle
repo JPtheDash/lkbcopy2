@@ -16,10 +16,10 @@ if (hasSigningKey) {
 }
 
 android {
-    namespace = "com.jpthedash.littlekrishnabutterhunt"
+    namespace = "com.dijytal.littlekrishnasbutterhunt"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.jpthedash.littlekrishnabutterhunt"
+        applicationId "com.dijytal.littlekrishnasbutterhunt"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
