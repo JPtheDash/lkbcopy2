@@ -12,6 +12,20 @@ splash, the 512px listing icon) and `tools/build_store_shots.py` (phone
 screenshots, from the real game via `tools/screenshot.mjs`). Nothing in
 `dist-store/` is committed; all of it rebuilds from the game's own art.
 
+## Testing on a phone
+
+    tools/build_apk.sh release     # what Play ships, signed with the upload key
+    tools/build_apk.sh             # debug, for a quicker loop
+
+Both land in `dist-apk/`, named apart. Prefer the release one for anything you
+are judging: it is the same build type as the bundle, not debuggable, and
+signed by the same key.
+
+They are signed by *different* keys, and Android will not install one over the
+other — swapping between them means uninstalling first. Skip that and the
+install fails with a bare "app not installed", which looks like a broken build
+and is not one.
+
 ## The signing key
 
 `android/keystore/` holds the upload key and its passwords, and is excluded by
