@@ -36,3 +36,7 @@ android/.gradle/
 android/build/
 android/app/build/
 android/capacitor-cordova-android-plugins/
+
+# Python bytecode from the tools in tools/
+__pycache__/
+*.pyc

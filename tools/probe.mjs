@@ -136,13 +136,17 @@ console.log("diagonal     rise", diag.rise, "px, free-air reach", diag.reach,
             "px, lands", diag.landing, "px sideways");
 
 const demand = await page.evaluate(() => {
-    const levels = window.__game.scene.getScene("GameScene").__allLevels;
+    const scene = window.__game.scene.getScene("GameScene");
+    const levels = scene.__allLevels;
+    const topLimit = scene.__topLimit;
+
     return levels.map(l => {
         let maxDy = 0, maxDx = 0;
 
-        // The butter is collected in the air or from where he stands, so it
-        // is a reach check only. Everything before it has to be landed on.
-        const hops = [[l.spawn[0], 2470], ...l.platforms.map(p => [p.x, p.y, p.width])];
+        // Every ledge has to be landed on, starting from wherever the level
+        // says he spawns - reading that rather than assuming it, because the
+        // whole ladder moves when the world gets taller.
+        const hops = [l.spawn, ...l.platforms.map(p => [p.x, p.y, p.width])];
 
         const steps = [];
 
@@ -154,10 +158,13 @@ const demand = await page.evaluate(() => {
             if (dy > 0) steps.push({ to: i, dx, width: hops[i][2] || 300 });
         }
 
-        maxDy = Math.max(maxDy, hops[hops.length - 1][1] - l.butter[1]);
-        maxDx = Math.max(maxDx, Math.abs(l.butter[0] - hops[hops.length - 1][0]));
+        // The pot is not jumped to - the level will not end until he is
+        // standing on the last ledge - so it is not part of the envelope.
+        // What matters instead is that the ledge left room above it for the
+        // pot and its rope.
+        const top = l.platforms[l.platforms.length - 1].y;
 
-        return { id: l.id, maxDy, maxDx, steps };
+        return { id: l.id, maxDy, maxDx, steps, top, topLimit };
     });
 });
 
@@ -173,20 +180,26 @@ let bad = 0;
 demand.forEach(d => {
     const okRise = d.maxDy <= diag.rise;
     const okReach = d.maxDx <= diag.reach;
+    const okTop = d.top >= d.topLimit;
 
     const missed = d.steps.filter(
         st => Math.abs(st.dx - diag.landing) > st.width / 2
     );
 
-    if (!okRise || !okReach || missed.length) bad++;
+    if (!okRise || !okReach || !okTop || missed.length) bad++;
 
     missed.forEach(st => console.log(
         `      step onto platform ${st.to}: ${st.dx}px, but a jump lands at ` +
         `${diag.landing}px and that ledge is only ${st.width}px wide`
     ));
+    if (!okTop) console.log(
+        `      last ledge at y=${d.top} is above the y=${d.topLimit} ceiling, ` +
+        `leaving no room for the pot and its rope`
+    );
     console.log(
         `  level ${d.id}: rise ${d.maxDy} ${okRise ? "ok" : "TOO HIGH"}, ` +
-        `reach ${d.maxDx} ${okReach ? "ok" : "TOO FAR"}`
+        `reach ${d.maxDx} ${okReach ? "ok" : "TOO FAR"}, ` +
+        `top y=${d.top} ${okTop ? "ok" : "TOO HIGH"}`
     );
 });
 

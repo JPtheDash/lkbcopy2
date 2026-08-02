@@ -41,7 +41,14 @@ BACKGROUNDS = {
 # file -> (widest on-screen width in px, quantize?)
 # Stored at 1.5x that for high density screens.
 ASSETS = {
-    "items/butter_pot.png": (40, False),
+    # Mostly rope: the pot inside it works out about 150 wide on screen
+    "items/butter_pot.png": (159, False),
+
+    # Cut out of butter_pot.png by build_hide_pot(), which runs first
+    "items/pot_hide.png": (120, False),
+
+    "characters/krishna_hero.png": (291, False),
+
     "platforms/platform.png": (300, False),
     "ui/krishna_happy_butter.png": (200, False),
 
@@ -165,6 +172,18 @@ def to_jpeg(rel, target_w):
 
     im = Image.open(source).convert("RGB")
 
+    # Already a JPEG at or under its target, so there is nothing to do - and
+    # doing it anyway is not free. JPEG is lossy on the way out as well as in,
+    # so re-encoding one that is already finished throws away a little more
+    # of it every time the pipeline runs. The art with an entry in
+    # incoming/originals/ is safe because staging restores it first; these two
+    # backgrounds have no original to restore from, so each rebuild was
+    # quietly compounding on the last one.
+    if source == jpg_path and im.width <= target_w:
+        print(f"  {rel:38} {before//1024:6}KB          already jpg "
+              f"{im.width}x{im.height}, left alone")
+        return before, before
+
     if im.width > target_w:
         target_h = max(1, round(im.height * target_w / im.width))
         im = im.resize((target_w, target_h), Image.LANCZOS)
@@ -280,6 +299,43 @@ def process_sheet():
     return before, after
 
 
+# Where the pot itself starts in the hanging art, as a fraction of the whole
+# picture's height. Above this line is the rope it hangs from.
+POT_BODY_TOP = 0.55
+
+
+def build_hide_pot():
+    """
+    Cuts the standing pot the levels are dressed with out of the hanging one.
+
+    The pots on the ledges used to be hazard_pot.png, which is drawn cracked
+    open with its rim broken and light leaking out of it - it is a hazard, and
+    it read as one. As something to hide behind it looked like rubble.
+
+    The prize pot is the same object in better condition, so the pot is taken
+    from that and the rope it hangs by is cut off above the rim. What is left
+    keeps the rope net wrapped round its belly, which is how a butter pot is
+    stored anyway, so it sits on a shelf without looking cut down.
+    """
+    src = os.path.join(ROOT, "items", "butter_pot.png")
+
+    if not os.path.exists(src):
+        print("  butter_pot.png missing, skipping hide pot")
+        return
+
+    pot = crop_to_content(Image.open(src).convert("RGBA"))
+
+    pot = crop_to_content(
+        pot.crop((0, round(pot.height * POT_BODY_TOP), pot.width, pot.height))
+    )
+
+    out = os.path.join(ROOT, "items", "pot_hide.png")
+    pot.save(out, "PNG", optimize=True)
+
+    print(f"  pot_hide.png    {pot.width}x{pot.height}  "
+          f"{os.path.getsize(out)//1024}KB   cut from butter_pot.png")
+
+
 def build_climb_background():
     """
     Derives the two pieces the scrolling level needs from the room art.
@@ -348,6 +404,11 @@ def main():
     # tile is lifted from a 180px window and enlarged, so it wants the sharp
     # original rather than the shipping copy.
     build_climb_background()
+
+    # Also derived before the shipping resize, for the same reason: the pot is
+    # cut out of butter_pot.png and then scaled to its own size, which is not
+    # the size butter_pot.png ends up at.
+    build_hide_pot()
     print()
 
     for rel, w in BACKGROUNDS.items():

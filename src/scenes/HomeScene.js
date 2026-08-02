@@ -1,8 +1,8 @@
 import Phaser from "phaser";
 import { loadImage } from "../ui/loader";
-import { loadKrishna, createKrishnaAnimations, KRISHNA_KEY } from "../ui/krishna";
 import AudioManager from "../managers/AudioManager";
 import homeBackground from "../assets/backgrounds/home_background.jpg";
+import krishnaHero from "../assets/characters/krishna_hero.png";
 import logo from "../assets/ui/logo.png";
 import playButtonImg from "../assets/ui/play_button.png";
 import butterPot from "../assets/items/butter_pot.png";
@@ -30,7 +30,7 @@ export default class HomeScene extends Phaser.Scene {
         loadImage(this, "homeBg", homeBackground);
         loadImage(this, "butterPot", butterPot);
         loadImage(this, "logo", logo);
-        loadKrishna(this);
+        loadImage(this, "krishnaHero", krishnaHero);
         loadImage(this, "playButton", playButtonImg);
         loadImage(this, "settingsButton", settingsButton);
         loadImage(this, "settingsPanel", settingsPanel);
@@ -72,32 +72,49 @@ export default class HomeScene extends Phaser.Scene {
             ease: "Sine.easeInOut"
         });
 
-        // Butter pot
+        // Butter pot, hung from the top of its rope so that swinging it turns
+        // it about the point it hangs from - the same pivot the prize uses in
+        // a level. Turned about its middle, the rope's fixing swings too and
+        // the whole thing reads as a pot being waved rather than hanging.
         this.butterPot = fitHeight(
-            this.add.image(160, 470, "butterPot"),
-            120
+            this.add.image(150, 380, "butterPot").setOrigin(0.5, 0),
+            200
         ).setDepth(1);
 
         this.tweens.add({
             targets: this.butterPot,
-            angle: 8,
-            duration: 900,
+            angle: 7,
+            duration: 1400,
             yoyo: true,
             repeat: -1,
             ease: "Sine.easeInOut"
         });
 
-        // Krishna, breathing rather than posed
-        createKrishnaAnimations(this);
+        // The title character is his own drawing rather than a frame lifted
+        // out of the run sheet: the sheet's frames are built to read at 216px
+        // in the middle of a level, and blown up to fill a title screen they
+        // are visibly soft. This one is drawn for the size it is shown at.
+        //
+        // Stood on his feet rather than centred, so that the breathing below
+        // settles him onto the ground instead of bobbing him off it.
+        this.krishna = fitHeight(
+            this.add.image(GAME_WIDTH/2, 935, "krishnaHero").setOrigin(0.5, 1),
+            580
+        );
 
-        fitHeight(
-            this.add.sprite(GAME_WIDTH/2, 660, KRISHNA_KEY, 0),
-            470
-        ).play("krishna-idle");
+        this.tweens.add({
+            targets: this.krishna,
+            scaleY: this.krishna.scaleY * 1.018,
+            duration: 1700,
+            yoyo: true,
+            repeat: -1,
+            ease: "Sine.easeInOut"
+        });
 
-        // Play button
+        // Play button, low enough to clear his feet - at 940 its top edge cut
+        // across his ankles now that he is drawn full height
         this.playButton = fitWidth(
-            this.add.image(GAME_WIDTH/2, 940, "playButton"),
+            this.add.image(GAME_WIDTH/2, 1015, "playButton"),
             280
         ).setInteractive({ useHandCursor: true });
 

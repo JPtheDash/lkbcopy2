@@ -34,6 +34,9 @@ TOOLS = Path(__file__).resolve().parent
 #
 #   checker  the export baked in the editor's transparency chequerboard
 #   flood    a flat white studio backdrop
+#   edges    a soft grey gradient, with a glow painted around the art - the
+#            fill has to be stopped by how sharply the picture changes, not
+#            by colour, because the backdrop drifts as far as the art does
 KEYING = {
     "krishna_sheet.png": "checker",
     "icon_music.png": "checker",
@@ -46,12 +49,31 @@ KEYING = {
     "world_vrindavan.png": "flood",
     "world_yamuna.png": "flood",
     "world_mathura.png": "flood",
+
+    "krishna_hero.png": "edges",
+    "butter_pot.png": "edges",
+}
+
+# Art drawn as a mesh of separate strokes rather than one solid shape, and how
+# wide a gap to bridge in it. Krishna's hair is a pile of individual locks
+# with backdrop showing between them; without this the fill pours through the
+# gaps and he comes out wearing a grey wig.
+#
+# Nothing else needs it, and it is not free: the window also rounds off any
+# genuine notch in the silhouette narrower than itself.
+CLOSING = {
+    "krishna_hero.png": 21,
 }
 
 # Low enough that the fill stops at the art, high enough to cross the
 # backdrop's own noise. Measured at 0.6 levels between neighbours on the
 # white plates, so anything from 4 to 8 gives the same result.
 FLOOD_TOLERANCE = 6
+
+# The edge mode already has the steepness test doing the real work, so the
+# colour test alongside it is only a backstop for gaps in an outline and can
+# sit looser than the flood plates need.
+EDGE_TOLERANCE = 8
 
 
 def run(*args):
@@ -91,21 +113,27 @@ def stage():
 
 def key():
 
-    for mode in ("checker", "flood"):
+    # Grouped by the flags they need, so files sharing settings still go
+    # through in one call and anything with its own closing gets its own.
+    batches = {}
 
-        files = [
-            ROOT / "src" / "assets" / TARGETS[n] / n
-            for n, m in KEYING.items() if m == mode
-        ]
+    for name, mode in KEYING.items():
 
-        if not files:
-            continue
+        flags = {
+            "checker": ("--checker",),
+            "flood": ("--tolerance", str(FLOOD_TOLERANCE)),
+            "edges": ("--edges", "--tolerance", str(EDGE_TOLERANCE)),
+        }[mode]
 
-        flag = ["--checker"] if mode == "checker" else [
-            "--tolerance", FLOOD_TOLERANCE
-        ]
+        if name in CLOSING:
+            flags += ("--close", str(CLOSING[name]))
 
-        run(TOOLS / "key_background.py", *flag, *files)
+        batches.setdefault(flags, []).append(
+            ROOT / "src" / "assets" / TARGETS[name] / name
+        )
+
+    for flags, files in batches.items():
+        run(TOOLS / "key_background.py", *flags, *files)
 
     print(flush=True)
 

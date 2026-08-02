@@ -3,6 +3,8 @@ Removes the backdrop that generated art arrives painted onto.
 
     python3 tools/key_background.py src/assets/platforms/platform_wood.png ...
     python3 tools/key_background.py --tolerance 24 src/assets/ui/icon_music.png
+    python3 tools/key_background.py --checker src/assets/characters/krishna_sheet.png
+    python3 tools/key_background.py --edges --close 21 src/assets/characters/krishna_hero.png
 
 The backdrops here are not a single flat colour - the sprite sheet sits on a
 grey that ramps from 200 to 251 across the frame, and a fixed "delete
@@ -13,6 +15,22 @@ it drifts, while the hard edge where the art starts stops it.
 
 Only pixels reachable from the border are removed, so an enclosed patch of
 backdrop-coloured art - a grey stone, a white highlight - survives.
+
+Flags, each for a way the art was delivered:
+
+  --tolerance N  how far the fill may drift between neighbours. The default
+                 suits a flat plate; drop it to 6-8 for a gradient.
+  --checker      the export baked in the editor's transparency chequerboard,
+                 so the backdrop has to be classified by colour before the
+                 fill can cross its cell edges.
+  --edges        the backdrop is a gradient with a glow painted into it, and
+                 drifts as far as the art does. Stops the fill at steep
+                 changes instead of trusting colour alone.
+  --close N      the art is a mesh of separate strokes with backdrop showing
+                 between them - hair, foliage - and the gaps need bridging or
+                 the fill pours in through them.
+  --restore      start again from the delivered file in incoming/originals/.
+                 Keying is destructive, so every retry needs this.
 """
 
 import shutil
@@ -32,6 +50,19 @@ ORIGINALS = ROOT / "incoming" / "originals"
 # a little more than the cells alone would need.
 NEUTRAL_TOLERANCE = 10
 BAND_WIDTH = 8
+
+# How big a step between neighbouring pixels counts as a drawn edge rather
+# than the backdrop's own drift, and how hard to blur before measuring it.
+#
+# These are low because the boundary that matters least often has the most
+# contrast. Krishna's hair is black against a near-black corner of the
+# backdrop, and at a threshold in the teens that boundary is invisible - the
+# fill walks in and eats the hair, and no amount of closing afterwards puts
+# the silhouette back. Blurring hard enough to kill JPEG ringing smears the
+# same faint boundary away, so the blur stays light and the threshold sits
+# just above the noise that survives it.
+EDGE_BLUR = 0.6
+EDGE_THRESHOLD = 5
 
 # Smaller than an 8x8 patch and it is keying residue, not something drawn
 OPAQUE = 200
@@ -113,7 +144,50 @@ def checker_candidates(im, bands):
     return ok
 
 
-def background_mask(im, tolerance, allowed=None):
+def edge_walls(im, threshold=EDGE_THRESHOLD):
+    """
+    Pixels where the picture changes faster than a backdrop ever does.
+
+    Comparing each pixel with the neighbour the fill arrived from follows a
+    smooth ramp, which is the whole point on a gradient backdrop - but it also
+    walks straight across the anti-aliased boundary into the art, because that
+    boundary is a ramp too, just a short one. On the hero art it crossed the
+    two-pixel blend at the edge of Krishna's hair and dissolved all of it.
+
+    So the ramp gets a second test it cannot pass: how steep it is. The
+    backdrop drifts, the ink outline steps, and only the step is a wall.
+
+    Note this also keys out soft glows and vignettes - anything painted onto
+    the backdrop without a hard edge - which is what we want, since they were
+    lighting on the old backdrop and belong to nothing once it is gone.
+    """
+
+    import numpy as np
+
+    # Without a blur first, JPEG ringing along the outline reads as edges
+    # several pixels out into the backdrop and walls the fill off early,
+    # leaving a rind of grey around the art.
+    a = np.asarray(
+        im.filter(ImageFilter.GaussianBlur(EDGE_BLUR)).convert("RGB"),
+        dtype=np.int16
+    )
+
+    step = np.zeros(a.shape[:2], dtype=np.int16)
+    step[:, :-1] = np.abs(a[:, 1:] - a[:, :-1]).max(axis=2)
+    step[:-1, :] = np.maximum(
+        step[:-1, :], np.abs(a[1:, :] - a[:-1, :]).max(axis=2)
+    )
+
+    # A step belongs to both pixels either side of it, or the fill slips
+    # through the near side of every outline.
+    both = step.copy()
+    both[:, 1:] = np.maximum(both[:, 1:], step[:, :-1])
+    both[1:, :] = np.maximum(both[1:, :], step[:-1, :])
+
+    return bytearray((both > threshold).astype(np.uint8).ravel())
+
+
+def background_mask(im, tolerance, allowed=None, compare=None):
     """
     Flood the backdrop inwards from every border pixel.
 
@@ -121,10 +195,17 @@ def background_mask(im, tolerance, allowed=None):
     instead of comparing colours as it goes; without it, each pixel is judged
     against the neighbour it spread from, which follows a smooth ramp.
 
+    `compare` forces both tests at once. The edge mode needs that: the walls
+    stop the fill at the outline, and the colour test is the backstop for
+    wherever the outline turns out to have a gap in it.
+
     Either way the fill only starts at the border, so a patch of art that
     happens to match the backdrop - a white highlight, a grey stone - keeps
     its pixels as long as nothing connects it to the edge.
     """
+
+    if compare is None:
+        compare = allowed is None
 
     w, h = im.size
     px = im.convert("RGB").load()
@@ -162,10 +243,10 @@ def background_mask(im, tolerance, allowed=None):
             if seen[i]:
                 continue
 
-            if allowed is not None:
-                if not allowed[i]:
-                    continue
-            else:
+            if allowed is not None and not allowed[i]:
+                continue
+
+            if compare:
                 nr, ng, nb = px[nx, ny]
                 if max(abs(nr - r), abs(ng - g), abs(nb - b)) > tolerance:
                     continue
@@ -241,7 +322,145 @@ def grow(mask, w, h, rounds=1):
     return mask
 
 
-def key(path, tolerance=DEFAULT_TOLERANCE, checker=False):
+def close_gaps(kept, w, h, size):
+    """
+    Bridge gaps in the kept mask that are narrower than `size`.
+
+    Krishna's hair is drawn as a mesh of separate locks with backdrop visible
+    between them. Every one of those gaps reaches the outside, so the fill
+    pours in through them and leaves the hair as a sparse lattice of strands -
+    on a white page it reads as a grey wig. No colour or edge test can help,
+    because the pixels between the locks genuinely are backdrop.
+
+    A dilate-then-erode closes anything thinner than the window while leaving
+    the silhouette where it was. The window has to stay well under the real
+    gaps in the pose - between the legs, and between each arm and the body -
+    or those close up too and he ends up a solid slab.
+
+    The window is an octagon rather than PIL's square, built by following the
+    square with repeated 3x3 passes - a square leaves its own corners behind
+    as right-angled notches cut into the side of the hair, which at the size
+    this is closed at are plainly visible on screen.
+    """
+
+    mask = Image.frombytes(
+        "L", (w, h), bytes(255 if k else 0 for k in kept)
+    )
+
+    square = max(3, (size // 2) | 1)
+    diamond = max(1, (size - square) // 2)
+
+    out = mask.filter(ImageFilter.MaxFilter(square))
+    for _ in range(diamond):
+        out = out.filter(ImageFilter.MaxFilter(3))
+
+    out = out.filter(ImageFilter.MinFilter(square))
+    for _ in range(diamond):
+        out = out.filter(ImageFilter.MinFilter(3))
+
+    return bytearray(1 if p else 0 for p in out.get_flattened_data())
+
+
+def keep_largest(kept, w, h):
+    """
+    Throw away everything not joined to the main shape.
+
+    Closing pulls the hair together but leaves the tips of a few outlying
+    locks stranded as their own blobs, floating beside the head. They are far
+    too big for despeckle to call them flecks and far too obviously wrong to
+    keep, and on a single-figure cutout there is only ever one right answer
+    for what to keep: the figure.
+    """
+
+    solid = bytearray(kept)
+    best = []
+
+    for start in range(w * h):
+
+        if not solid[start]:
+            continue
+
+        blob = []
+        queue = deque([start])
+        solid[start] = 0
+
+        while queue:
+
+            i = queue.popleft()
+            blob.append(i)
+            x, y = i % w, i // w
+
+            for nx, ny in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+                if 0 <= nx < w and 0 <= ny < h:
+                    j = ny * w + nx
+                    if solid[j]:
+                        solid[j] = 0
+                        queue.append(j)
+
+        if len(blob) > len(best):
+            best = blob
+
+    out = bytearray(w * h)
+
+    for i in best:
+        out[i] = 1
+
+    return out
+
+
+def fill_holes(kept, w, h, max_area):
+    """
+    Make opaque any transparent pocket that is sealed inside the art.
+
+    Closing bridges the gaps between Krishna's locks of hair, but a few
+    pockets deeper in the mass are wider than the window and survive as square
+    punctures. They cannot reach the outside, so nothing about them is
+    backdrop - they are just places the fill got to before the closing sealed
+    the way back out.
+
+    Only sealed pockets, and only small ones: the gap between an arm and the
+    body reaches the border and is never considered, and `max_area` keeps a
+    genuinely enclosed piece of backdrop - the triangle inside the butter
+    pot's rope - from being painted over.
+    """
+
+    clear = bytearray(0 if k else 1 for k in kept)
+    out = bytearray(kept)
+
+    for start in range(w * h):
+
+        if not clear[start]:
+            continue
+
+        pocket = []
+        queue = deque([start])
+        clear[start] = 0
+        sealed = True
+
+        while queue:
+
+            i = queue.popleft()
+            pocket.append(i)
+            x, y = i % w, i // w
+
+            if x in (0, w - 1) or y in (0, h - 1):
+                sealed = False
+
+            for nx, ny in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+                if 0 <= nx < w and 0 <= ny < h:
+                    j = ny * w + nx
+                    if clear[j]:
+                        clear[j] = 0
+                        queue.append(j)
+
+        if sealed and len(pocket) <= max_area:
+            for i in pocket:
+                out[i] = 1
+
+    return out
+
+
+def key(path, tolerance=DEFAULT_TOLERANCE, checker=False, edges=False, close=0):
 
     im = Image.open(path).convert("RGB")
     w, h = im.size
@@ -251,7 +470,18 @@ def key(path, tolerance=DEFAULT_TOLERANCE, checker=False):
     if checker and bands is None:
         raise SystemExit(f"{path}: no checkerboard found, drop --checker")
 
-    if bands:
+    if edges:
+        # Walls stop the fill; the colour test still runs alongside them as a
+        # backstop. Nothing is grown into the art afterwards - one pixel of
+        # growth here would take the outline off with it, and the outline is
+        # what the whole mode is protecting.
+        mask = background_mask(
+            im,
+            tolerance,
+            bytearray(0 if wall else 1 for wall in edge_walls(im)),
+            compare=True
+        )
+    elif bands:
         # Neighbouring cells are separated by a one-pixel blend that belongs
         # to neither band, so the raw classification is a grid of squares
         # walled off from each other and the fill never leaves the border.
@@ -264,6 +494,20 @@ def key(path, tolerance=DEFAULT_TOLERANCE, checker=False):
         mask = background_mask(im, tolerance)
 
     kept = despeckle(bytes(0 if m else 255 for m in mask), w, h)
+
+    if close:
+        # Closing first, then despeckling again: bridging the strands merges
+        # them into the body, so flecks that were big enough to survive on
+        # their own are re-judged as part of the whole shape.
+        kept = despeckle(
+            bytes(255 if k else 0 for k in close_gaps(kept, w, h, close)), w, h
+        )
+
+        kept = keep_largest(kept, w, h)
+
+        # A pocket several window-widths across was never something closing
+        # was meant to reach, so it is left alone as real backdrop.
+        kept = fill_holes(kept, w, h, (close * 4) ** 2)
 
     alpha = Image.frombytes("L", (w, h), bytes(255 if k else 0 for k in kept))
 
@@ -298,6 +542,21 @@ def main():
     if checker:
         args.remove("--checker")
 
+    edges = "--edges" in args
+    if edges:
+        args.remove("--edges")
+
+    close = 0
+    if "--close" in args:
+        i = args.index("--close")
+        close = int(args[i + 1])
+        del args[i:i + 2]
+
+        # MaxFilter/MinFilter centre their window on a pixel, so it has to be
+        # odd for the dilate and the erode to cancel out
+        if close % 2 == 0:
+            close += 1
+
     if not args:
         print(__doc__)
         return 1
@@ -309,7 +568,7 @@ def main():
         if restore and (ORIGINALS / path.name).exists():
             shutil.copy2(ORIGINALS / path.name, path)
 
-        out, pct, bands = key(path, tolerance, checker)
+        out, pct, bands = key(path, tolerance, checker, edges, close)
 
         # Keying is destructive and the tolerance usually needs a second try,
         # so park the delivered file outside src/ where it neither ships nor
@@ -321,7 +580,9 @@ def main():
 
         out.save(path)
 
-        how = f"checker {bands[0]}/{bands[1]}" if bands else f"tolerance {tolerance}"
+        how = (f"checker {bands[0]}/{bands[1]}" if bands
+               else f"edges, tolerance {tolerance}" if edges
+               else f"tolerance {tolerance}")
         print(f"{path.name}: {pct:.0f}% opaque after keying ({how})")
 
     return 0

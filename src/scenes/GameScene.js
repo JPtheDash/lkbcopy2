@@ -13,7 +13,7 @@ import platformStone from "../assets/platforms/platform_stone.png";
 import platformCracked from "../assets/platforms/platform_cracked.png";
 import platformCloud from "../assets/platforms/platform_cloud.png";
 import sparkImg from "../assets/fx/spark.png";
-import hidePotImg from "../assets/items/hazard_pot.png";
+import hidePotImg from "../assets/items/pot_hide.png";
 import hintSwipeImg from "../assets/ui/hint_swipe.png";
 import hintHandImg from "../assets/ui/hint_hand.png";
 import pauseButtonImg from "../assets/ui/pause_button.png";
@@ -23,7 +23,7 @@ import playButtonImg from "../assets/ui/play_button.png";
 import getStars from "../ui/StarReward";
 import AudioManager from "../managers/AudioManager";
 import LevelManager from "../managers/LevelManager";
-import Levels from "../data/levels";
+import Levels, { TOP_LIMIT } from "../data/levels";
 import MotherWatch from "../game/MotherWatch";
 import { fitWidth, fitHeight, GAME_WIDTH, GAME_HEIGHT, WORLD_HEIGHT, FLOOR_Y } from "../ui/layout";
 
@@ -108,7 +108,26 @@ const FOOT_INSET = 3;
 const BODY_WIDTH = 52;
 const BODY_HEIGHT = 22;
 
-const BUTTER_HEIGHT = 130;
+// The prize, measured over the whole picture - which is mostly the rope it
+// hangs from. The pot itself works out around 150 tall, against 58 before.
+const BUTTER_HEIGHT = 330;
+
+// Where the pot starts inside that picture: everything above this line is
+// the rope it hangs by. Keep it in step with POT_BODY_TOP in
+// tools/optimize_assets.py, which cuts the standing pot out at the same line.
+//
+// The pot is the only part worth colliding with - grabbing the middle of a
+// rope is not reaching the butter - and it is also what the swing carries
+// around, so both come from here.
+const POT_BODY_TOP = 0.55;
+const POT_BODY_CENTRE = (1 + POT_BODY_TOP) / 2;
+const POT_BODY_RADIUS = 0.5;
+
+// A pendulum on a rope. Slow and shallow: the pot has to be catchable by
+// someone standing under it, so this is atmosphere, not an obstacle.
+const SWING_ANGLE = 13;
+const SWING_MS = 1600;
+
 const DROP_HEIGHT = 52;
 
 // Below this Krishna is drifting to a stop under drag, not running
@@ -239,6 +258,7 @@ export default class GameScene extends Phaser.Scene {
         // Exposed for the tools in tools/
         this.__levelPlatforms = levelConfig.platforms;
         this.__allLevels = Levels;
+        this.__topLimit = TOP_LIMIT;
 
         this.platforms = levelConfig.platforms.map(
             (spec, index) => this.createPlatform(spec, index)
@@ -341,33 +361,45 @@ export default class GameScene extends Phaser.Scene {
 
         this.makeGlowTexture();
 
-        // The prize is what the whole climb is aimed at, so it is lit from
-        // behind and drawn large enough to read from the bottom of the level.
-        this.butterGlow = this.add.image(
-            levelConfig.butter[0], levelConfig.butter[1], "glow"
-        )
-            .setBlendMode(Phaser.BlendModes.ADD)
-            .setDisplaySize(BUTTER_HEIGHT * 2.6, BUTTER_HEIGHT * 2.6)
-            .setDepth(-1);
+        // The last ledge, which is also the only place the prize can be taken
+        // from. climb() builds the ladder upward, so it is the last one.
+        this.topPlatform = this.platforms[this.platforms.length - 1];
+        this.reachedTop = false;
 
-        this.butter = this.physics.add.staticImage(
-            levelConfig.butter[0],
-            levelConfig.butter[1],
-            "butter"
-        );
+        const [potX, potY] = levelConfig.butter;
+
+        // Anchored by the top of its rope rather than by the pot, so that
+        // rotating it swings the pot around the point it hangs from. Rotating
+        // about the middle of the picture would swing the rope's fixing
+        // instead, which is not how a rope behaves.
+        this.butter = this.add.image(potX, potY, "butter").setOrigin(0.5, 0);
 
         fitHeight(this.butter, BUTTER_HEIGHT);
 
-        this.butter.refreshBody();
+        // levelConfig.butter says where the POT goes; the anchor is a rope's
+        // length above that.
+        this.butter.setY(potY - BUTTER_HEIGHT * POT_BODY_CENTRE);
+
+        this.butter.setAngle(-SWING_ANGLE);
 
         this.tweens.add({
-            targets: [this.butter, this.butterGlow],
-            y: levelConfig.butter[1] - 12,
-            duration: 1100,
+            targets: this.butter,
+            angle: SWING_ANGLE,
+            duration: SWING_MS,
             yoyo: true,
             repeat: -1,
             ease: "Sine.easeInOut"
         });
+
+        // Lit from behind so it reads from the bottom of the level. Sized and
+        // placed against the pot rather than the whole picture, which is
+        // mostly rope - a glow around all of it would light the ceiling.
+        const potSize = BUTTER_HEIGHT * (1 - POT_BODY_TOP);
+
+        this.butterGlow = this.add.image(potX, potY, "glow")
+            .setBlendMode(Phaser.BlendModes.ADD)
+            .setDisplaySize(potSize * 2.6, potSize * 2.6)
+            .setDepth(-1);
 
         // Breathing light, offset from the bob so the two never beat together
         this.tweens.add({
@@ -1193,6 +1225,23 @@ export default class GameScene extends Phaser.Scene {
 
     //------------------------------------------------
 
+    /**
+     * Where the pot is right now, swinging.
+     *
+     * Taken from the sprite's own transform rather than worked out from the
+     * angle, so the swing and the collision can never disagree about where
+     * the pot is - and so the sign of the rotation is Phaser's problem.
+     */
+    potPoint(){
+
+        return this.butter
+            .getWorldTransformMatrix()
+            .transformPoint(0, this.butter.height * POT_BODY_CENTRE);
+
+    }
+
+    //------------------------------------------------
+
     checkButter(){
 
         if(this.isGameOver){
@@ -1215,10 +1264,26 @@ export default class GameScene extends Phaser.Scene {
 
         });
 
-        if(Phaser.Geom.Intersects.RectangleToRectangle(
-            reach,
-            this.butter.getBounds()
-        )){
+        // The pot cannot be taken until he has stood on the last ledge.
+        //
+        // Without this he never got there. He is 230 tall and the pot hangs
+        // within reach of the ledge, so on the way up his head crossed it
+        // while he was still a platform below and a jump short - the level
+        // ended in mid-air, off to one side, with the climb unfinished. It
+        // read as the game closing on him rather than as him winning.
+        if(!this.reachedTop){
+
+            return;
+
+        }
+
+        const pot = this.potPoint();
+
+        const grab = new Phaser.Geom.Circle(
+            pot.x, pot.y, this.butter.displayWidth * POT_BODY_RADIUS
+        );
+
+        if(Phaser.Geom.Intersects.CircleToRectangle(grab, reach)){
 
             this.win();
 
@@ -1270,7 +1335,21 @@ export default class GameScene extends Phaser.Scene {
 
         const restY = this.krishna.body.bottom;
 
-        // The pot leaves its perch and comes to him
+        // Off the rope and into his hands. Swapping to the standing pot drops
+        // the rope from the picture, which is what taking it down looks like;
+        // keeping the hanging art would trail a cut rope across the screen.
+        this.tweens.killTweensOf(this.butter);
+
+        const pot = this.potPoint();
+
+        this.butter
+            .setTexture("hidePot")
+            .setOrigin(0.5, 0.5)
+            .setAngle(0)
+            .setPosition(pot.x, pot.y);
+
+        fitHeight(this.butter, BUTTER_HEIGHT * (1 - POT_BODY_TOP));
+
         this.tweens.add({
             targets: [this.butter, this.butterGlow],
             x: this.krishna.x,
@@ -1635,6 +1714,12 @@ export default class GameScene extends Phaser.Scene {
 
             this.lastGroundedAt = now;
 
+            if(this.isStandingOn(this.topPlatform)){
+
+                this.reachedTop = true;
+
+            }
+
             const under = this.platforms.find(
                 p => p.type === "crumbling" && this.isStandingOn(p)
             );
@@ -1682,6 +1767,16 @@ export default class GameScene extends Phaser.Scene {
         );
 
         this.setDucking(this.isHidden());
+
+        // The glow belongs to the pot, not to the rope, so it has to travel
+        // with the swing rather than sit at the fixing
+        if(this.butterGlow.active){
+
+            const pot = this.potPoint();
+
+            this.butterGlow.setPosition(pot.x, pot.y);
+
+        }
 
         this.checkButter();
 

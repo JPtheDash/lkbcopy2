@@ -41,6 +41,15 @@ async function bootGame() {
 
 const state = () => page.evaluate(() => {
     const g = window.__game;
+
+    // The page can lose the game entirely - a renderer that runs out of
+    // memory takes window.__game with it. Reporting that as a level that
+    // could not be finished beats a stack trace out of the harness, which
+    // looks like the game is broken rather than the machine it ran on.
+    if (!g) {
+        return { gone: true, complete: false, crashed: true };
+    }
+
     const s = g.scene.getScene("GameScene");
 
     if (!s || !s.scene.isActive() || !s.krishna || !s.krishna.body) {
@@ -145,11 +154,17 @@ for (let level = 1; level <= LEVEL_COUNT; level++) {
 
     const targets = await page.evaluate(() => {
         const s = window.__game.scene.getScene("GameScene");
-        // Level data holds {x, y, type}; flatten to pairs for the climb loop
+        // Level data holds {x, y, type}; flatten to pairs for the climb loop.
+        //
+        // The pot is aimed at where the pot is, not at s.butter's own origin -
+        // that origin is the top of the rope it hangs from, a long way above
+        // the pot and off to one side of it as it swings.
+        const pot = s.potPoint();
+
         return s.__levelPlatforms
             .map(p => [p.x, p.y])
             .sort((a, b) => b[1] - a[1])
-            .concat(s.butter ? [[s.butter.x, s.butter.y]] : []);
+            .concat([[pot.x, pot.y]]);
     });
 
     // Climb adaptively: always aim at the nearest platform above, rather than

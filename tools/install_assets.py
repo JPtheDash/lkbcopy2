@@ -27,7 +27,9 @@ INCOMING = ROOT / "incoming"
 # and left alone rather than guessed at.
 TARGETS = {
     "krishna_sheet.png":     "characters",
+    "krishna_hero.png":      "characters",
     "room_tall.jpg":         "backgrounds",
+    "butter_pot.png":        "items",
     "platform_wood.png":     "platforms",
     "platform_stone.png":    "platforms",
     "platform_cloud.png":    "platforms",
