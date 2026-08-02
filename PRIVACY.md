@@ -2,7 +2,7 @@
 
 **Effective date:** 2 August 2026
 **Developer:** JPtheDash
-**Contact:** jyotidash619@gmail.com
+**Contact:** Dijytalwonder@gmail.com
 
 ## The short version
 
@@ -84,4 +84,4 @@ effective date above changed before that version is released.
 
 ## Contact
 
-Questions about this policy can be sent to **jyotidash619@gmail.com**.
+Questions about this policy can be sent to **Dijytalwonder@gmail.com**.
