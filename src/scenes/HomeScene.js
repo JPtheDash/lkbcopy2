@@ -5,6 +5,7 @@ import homeBackground from "../assets/backgrounds/home_background.jpg";
 import krishnaHero from "../assets/characters/krishna_hero.png";
 import logo from "../assets/ui/logo.png";
 import playButtonImg from "../assets/ui/play_button.png";
+import nextButtonImg from "../assets/ui/next_button.png";
 import butterPot from "../assets/items/butter_pot.png";
 import settingsButton from "../assets/ui/settings_button.png";
 import settingsPanel from "../assets/ui/settings_panel.png";
@@ -32,6 +33,9 @@ export default class HomeScene extends Phaser.Scene {
         loadImage(this, "logo", logo);
         loadImage(this, "krishnaHero", krishnaHero);
         loadImage(this, "playButton", playButtonImg);
+
+        // The settings panel dresses its Close button with this
+        loadImage(this, "nextButton", nextButtonImg);
         loadImage(this, "settingsButton", settingsButton);
         loadImage(this, "settingsPanel", settingsPanel);
         loadImage(this, "settingsRow", settingsRow);
@@ -43,9 +47,43 @@ export default class HomeScene extends Phaser.Scene {
 
     }
 
+    /**
+     * A soft dark pool, drawn once and reused.
+     *
+     * Stacked translucent circles rather than a real gradient, because Phaser
+     * Graphics has no radial fill - the same trick GameScene uses to light
+     * the prize, inverted to shade instead.
+     */
+    makeGlowPatch() {
+
+        if(this.textures.exists("glowPatch")){
+
+            return;
+
+        }
+
+        const size = 128;
+        const rings = 26;
+
+        const g = this.add.graphics();
+
+        for(let i = rings; i > 0; i--){
+
+            g.fillStyle(0x1d0e02, 0.05);
+            g.fillCircle(size/2, size/2, (size/2) * (i / rings));
+
+        }
+
+        g.generateTexture("glowPatch", size, size);
+        g.destroy();
+
+    }
+
     create() {
 
         AudioManager.startMusic(this, "menu");
+
+        this.makeGlowPatch();
 
         // The canvas is as tall as the phone rather than a fixed 1280, so
         // these are anchored instead of written out: the title hangs from the
@@ -66,14 +104,25 @@ export default class HomeScene extends Phaser.Scene {
             GAME_WIDTH/2, GAME_HEIGHT/2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.25
         ).setDepth(-99);
 
-        // Logo
+        // The title is the loudest thing on the screen, so it gets the width
+        // to be one. At 430 it sat inside the painted tree in the background
+        // and the two dark, gold-flecked shapes read as one busy mess.
         this.logo = fitWidth(
             this.add.image(GAME_WIDTH/2, titleY, "logo"),
-            430
-        ).setDepth(2);
+            560
+        ).setDepth(3);
+
+        // A soft dark pool behind it, so the sign separates from whatever the
+        // background happens to put there. The background is cover-fitted and
+        // moves with the phone's shape, so it cannot be relied on to be sky.
+        this.logoGlow = this.add.image(GAME_WIDTH/2, titleY, "glowPatch")
+            .setDisplaySize(this.logo.displayWidth * 1.25,
+                            this.logo.displayHeight * 1.6)
+            .setDepth(2)
+            .setAlpha(0.5);
 
         this.tweens.add({
-            targets: this.logo,
+            targets: [this.logo, this.logoGlow],
             y: titleY - 12,
             duration: 1800,
             yoyo: true,
@@ -81,14 +130,21 @@ export default class HomeScene extends Phaser.Scene {
             ease: "Sine.easeInOut"
         });
 
-        // Butter pot, hung from the top of its rope so that swinging it turns
-        // it about the point it hangs from - the same pivot the prize uses in
-        // a level. Turned about its middle, the rope's fixing swings too and
-        // the whole thing reads as a pot being waved rather than hanging.
+        // Hung off the top right corner of the sign, where the peacock
+        // feather is, so it reads as tied to the title rather than floating
+        // in the sky on its own.
+        //
+        // Anchored at the top of its rope: rotating about the middle would
+        // swing the rope's fixing too, and it would look like a pot being
+        // waved rather than one hanging.
         this.butterPot = fitHeight(
-            this.add.image(150, 380, "butterPot").setOrigin(0.5, 0),
-            200
-        ).setDepth(1);
+            this.add.image(
+                this.logo.x + this.logo.displayWidth * 0.46,
+                titleY - this.logo.displayHeight * 0.54,
+                "butterPot"
+            ).setOrigin(0.5, 0),
+            230
+        ).setDepth(4);
 
         this.tweens.add({
             targets: this.butterPot,

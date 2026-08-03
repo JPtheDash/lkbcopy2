@@ -9,6 +9,7 @@ import lockIcon from "../assets/ui/lock.png";
 import starFull from "../assets/ui/star_full.png";
 import starEmpty from "../assets/ui/star_empty.png";
 import homeButtonImg from "../assets/ui/home_button.png";
+import levelBanner from "../assets/ui/level_banner.png";
 
 import LevelManager from "../managers/LevelManager";
 import { fitWidth, GAME_WIDTH, GAME_HEIGHT , coverScreen} from "../ui/layout";
@@ -36,6 +37,7 @@ export default class LevelSelectScene extends Phaser.Scene {
         loadImage(this, "starFull", starFull);
         loadImage(this, "starEmpty", starEmpty);
         loadImage(this, "homeButton", homeButtonImg);
+        loadImage(this, "levelBanner", levelBanner);
 
     }
 
@@ -49,17 +51,42 @@ export default class LevelSelectScene extends Phaser.Scene {
             GAME_WIDTH/2, GAME_HEIGHT/2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.5
         );
 
-        this.add.text(
+        // The heading sat as bare text on the sky, which read as a caption
+        // rather than as part of the game. It gets the same carved banner the
+        // level-complete screen puts its title on, so the two screens agree.
+        const banner = fitWidth(
+            this.add.image(GAME_WIDTH/2, 170, "levelBanner"),
+            560
+        );
+
+        // The plaque is not centred in its own picture - the hanging rings at
+        // the top are part of the art - so the caption is placed against the
+        // banner rather than against the screen.
+        const heading = this.add.text(
             GAME_WIDTH/2,
-            150,
+            banner.y - banner.displayHeight * 0.03,
             "SELECT LEVEL",
             {
                 fontFamily: "Arial",
-                fontSize: "54px",
+                fontSize: "48px",
                 fontStyle: "bold",
-                color: "#FFD54A"
+                color: "#FFD54A",
+                stroke: "#5A2D0C",
+                strokeThickness: 6
             }
         ).setOrigin(0.5);
+
+        // Two words do not fit the carved panel at the size one word does, and
+        // "SELECT LEVEL" ran straight over the scrollwork at both ends. Rather
+        // than pick a font size that happens to suit this string, it is shrunk
+        // to fit the wood - which also holds if the text is ever translated.
+        const room = banner.displayWidth * 0.56;
+
+        if(heading.width > room){
+
+            heading.setScale(room / heading.width);
+
+        }
 
         const levels = LevelManager.getLevels();
 

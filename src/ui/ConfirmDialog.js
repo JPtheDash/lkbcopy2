@@ -20,9 +20,15 @@ const DEPTH = 900;
 export default function confirmDialog(scene, {
     message = "Are you sure?",
     confirmText = "YES",
+
+    // Pass null for a one-button box - the About panel is telling you
+    // something rather than asking, and a "NO" beside it would be nonsense.
     cancelText = "NO",
+
     onConfirm = () => {},
-    onCancel = () => {}
+    onCancel = () => {},
+    height = 320,
+    fontSize = "42px"
 } = {}){
 
     // One at a time. Two presses of back should not stack two dialogs.
@@ -46,21 +52,23 @@ export default function confirmDialog(scene, {
     parts.push(dim);
 
     const panel = scene.add
-        .rectangle(cx, cy, 560, 320, 0x2a1403, 0.97)
+        .rectangle(cx, cy, 560, height, 0x2a1403, 0.97)
         .setStrokeStyle(5, 0xE8912B);
 
     parts.push(panel);
 
+    const buttonY = cy + height/2 - 90;
+
     const text = scene.add
-        .text(cx, cy - 70, message, {
+        .text(cx, cy - height/2 + 60, message, {
             fontFamily: "Arial",
-            fontSize: "42px",
+            fontSize: fontSize,
             fontStyle: "bold",
             color: "#FFE9A8",
             align: "center",
             wordWrap: { width: 480 }
         })
-        .setOrigin(0.5);
+        .setOrigin(0.5, 0);
 
     parts.push(text);
 
@@ -75,12 +83,12 @@ export default function confirmDialog(scene, {
     const button = (x, label, colour, action) => {
 
         const box = scene.add
-            .rectangle(x, cy + 70, 220, 92, colour)
+            .rectangle(x, buttonY, 220, 92, colour)
             .setStrokeStyle(4, 0xFFE9A8)
             .setInteractive({ useHandCursor: true });
 
         const caption = scene.add
-            .text(x, cy + 70, label, {
+            .text(x, buttonY, label, {
                 fontFamily: "Arial",
                 fontSize: "38px",
                 fontStyle: "bold",
@@ -102,8 +110,18 @@ export default function confirmDialog(scene, {
 
     };
 
-    button(cx - 130, cancelText, 0x7A4A18, onCancel);
-    button(cx + 130, confirmText, 0xA8341A, onConfirm);
+    if(cancelText){
+
+        button(cx - 130, cancelText, 0x7A4A18, onCancel);
+        button(cx + 130, confirmText, 0xA8341A, onConfirm);
+
+    }
+    else{
+
+        // One button, centred - nothing to weigh it against
+        button(cx, confirmText, 0xA8341A, onConfirm);
+
+    }
 
     parts.forEach(part => part.setScrollFactor(0).setDepth(DEPTH));
 

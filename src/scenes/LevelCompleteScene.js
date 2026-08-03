@@ -176,14 +176,23 @@ export default class LevelCompleteScene extends Phaser.Scene{
         // rather than as another label on the screen.
         if(data.stars >= 3){
 
+            const RIBBON_WIDTH = 400;
+
             const ribbon = fitWidth(
                 this.add.image(GAME_WIDTH/2, panelY + 115, "ribbon"),
-                400
+                RIBBON_WIDTH
             ).setAlpha(0);
+
+            // The writing band is not in the middle of the picture: the art is
+            // 630x178 and the red runs from y=36 to y=109, so its centre sits
+            // 16.5px above the image's own, with the curled tails filling the
+            // rest. Text centred on the image therefore reads low, half off
+            // the band. Measured off the art so it survives a re-export.
+            const BAND_OFFSET = -16.5 * (RIBBON_WIDTH / 630);
 
             const caption = this.add.text(
                 GAME_WIDTH/2,
-                panelY + 113,
+                ribbon.y + BAND_OFFSET,
                 "PERFECT!",
                 {
                     fontFamily: "Arial",

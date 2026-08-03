@@ -1,6 +1,19 @@
 import ToggleSwitch from "./ToggleSwitch";
 import { fitWidth } from "./layout";
 
+// The row art is 470 wide and centred, so it runs from -235 to +235 with a
+// moulded gem at each end. Measured off settings_row.png, those gems sit at
+// +/-204 and are about 19 wide at this size, so anything reaching past ~190
+// collides with one - which is what put "English" through the right-hand gem.
+//
+// Labels share a left edge, controls share a right edge. Aligning controls by
+// their centres instead would step their right-hand ends about wherever each
+// one's own width happened to fall.
+export const ROW_WIDTH = 470;
+export const ICON_X = -168;
+export const LABEL_X = -120;
+export const CONTROL_RIGHT = 168;
+
 export default class SettingRow {
 
     constructor(scene, container, config) {
@@ -15,7 +28,7 @@ export default class SettingRow {
             "settingsRow"
         );
 
-        fitWidth(this.row, 470);
+        fitWidth(this.row, ROW_WIDTH);
 
         container.add(this.row);
 
@@ -26,7 +39,7 @@ export default class SettingRow {
         if(config.icon && scene.textures.exists(config.icon)){
 
             this.icon = fitWidth(
-                scene.add.image(-168, config.y, config.icon),
+                scene.add.image(ICON_X, config.y, config.icon),
                 58
             );
 
@@ -34,9 +47,13 @@ export default class SettingRow {
 
         }
 
+        // Every label starts on the same line, whether or not the row has an
+        // icon. It used to shift out to -185 without one, so About sat a
+        // finger's width left of Music, Sound and Language and the column of
+        // text visibly stepped.
         this.label = scene.add.text(
 
-            this.icon ? -128 : -185,
+            LABEL_X,
 
             config.y,
 
@@ -62,7 +79,7 @@ export default class SettingRow {
 
                 scene,
 
-                150,
+                0,
 
                 config.y,
 
@@ -72,7 +89,22 @@ export default class SettingRow {
 
             );
 
+            // Placed by its right edge once it knows how wide it drew itself
+            this.control.image.x =
+                CONTROL_RIGHT - this.control.image.displayWidth/2;
+
             container.add(this.control.image);
+
+        }
+
+        // The whole row answers a tap, not just the small mark at its end.
+        // Reaching for a 24px chevron on a phone is a poor target when there
+        // is a 470px bar sitting under it doing nothing.
+        if(config.onPress){
+
+            this.row.setInteractive({ useHandCursor: true });
+
+            this.row.on("pointerdown", config.onPress);
 
         }
 

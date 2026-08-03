@@ -1,5 +1,6 @@
-import SettingRow from "./SettingRow";
-import { fitWidth } from "./layout";
+import SettingRow, { CONTROL_RIGHT } from "./SettingRow";
+import confirmDialog from "./ConfirmDialog";
+import { fitWidth, GAME_WIDTH, GAME_HEIGHT } from "./layout";
 import SaveManager from "../managers/SaveManager";
 import AudioManager from "../managers/AudioManager";
 
@@ -13,11 +14,14 @@ export default class SettingsPanel {
         // =========================
         // Overlay
         // =========================
+        // Sized to the canvas, not to the old fixed 1280: on a tall phone a
+        // 1280-high scrim left the bottom of the screen undimmed, so the play
+        // button stayed bright behind a modal panel.
         this.overlay = scene.add.rectangle(
-            360,
-            640,
-            720,
-            1280,
+            GAME_WIDTH/2,
+            GAME_HEIGHT/2,
+            GAME_WIDTH,
+            GAME_HEIGHT,
             0x000000,
             0.55
         );
@@ -33,7 +37,7 @@ export default class SettingsPanel {
         // =========================
         // Main Container
         // =========================
-        this.container = scene.add.container(360, 640);
+        this.container = scene.add.container(GAME_WIDTH/2, GAME_HEIGHT/2);
 
         this.container.setDepth(100);
         this.container.setVisible(false);
@@ -132,9 +136,10 @@ export default class SettingsPanel {
             }
         );
 
-        // Clear of the gem moulded into the right end of the row art
+        // Sits where the toggles sit, so the three controls share a right
+        // edge instead of each ending wherever its own text happened to run
         this.languageValue = scene.add.text(
-            128,
+            CONTROL_RIGHT,
             90,
             "English",
             {
@@ -142,7 +147,7 @@ export default class SettingsPanel {
                 color: "#1E5AA8",
                 fontStyle: "bold"
             }
-        ).setOrigin(0.5);
+        ).setOrigin(1, 0.5);
 
         this.languageValue.setInteractive({
             useHandCursor: true
@@ -164,67 +169,86 @@ export default class SettingsPanel {
             this.container,
             {
                 y: 220,
-                label: "About"
+                label: "About",
+                onPress: () => this.showAbout()
             }
         );
 
         this.aboutArrow = scene.add.text(
-            165,
+            CONTROL_RIGHT,
             220,
             ">",
             {
                 fontSize: "40px",
                 fontStyle: "bold",
-                color: "#5A2D0C"
+                color: "#FFE9A8",
+                stroke: "#5A2D0C",
+                strokeThickness: 4
             }
-        ).setOrigin(0.5);
-
-        this.aboutArrow.setInteractive({
-            useHandCursor: true
-        });
-
-        this.aboutArrow.on("pointerdown", () => {
-
-            alert(
-                "Little Krishna's Butter Hunt\n\nVersion 1.0"
-            );
-
-        });
+        ).setOrigin(1, 0.5);
 
         this.container.add(this.aboutArrow);
 
         // =========================
         // Close Button
         // =========================
-        this.closeButton = scene.add.text(
+        // The carved button the level-complete screen uses for Next, rather
+        // than a coloured text box - which was the one thing on this panel
+        // that did not look like it came from the same game.
+        this.closeButton = fitWidth(
+            scene.add.image(0, 350, "nextButton"),
+            260
+        ).setInteractive({ useHandCursor: true });
+
+        this.closeLabel = scene.add.text(
             0,
             350,
-            "Close",
+            "CLOSE",
             {
-                fontSize: "34px",
+                fontFamily: "Arial",
+                fontSize: "36px",
                 fontStyle: "bold",
-                color: "#8B0000",
-                backgroundColor: "#c29024ff",
-                padding: {
-                    left: 20,
-                    right: 20,
-                    top: 10,
-                    bottom: 10
-                }
+                color: "#FFF3C4",
+                stroke: "#5A2D0C",
+                strokeThickness: 6
             }
         ).setOrigin(0.5);
 
-        this.closeButton.setInteractive({
-            useHandCursor: true
-        });
-
         this.closeButton.on("pointerdown", () => {
+
+            AudioManager.play(scene, "click");
 
             this.close();
 
         });
 
         this.container.add(this.closeButton);
+        this.container.add(this.closeLabel);
+
+    }
+
+    /**
+     * What "About" opens.
+     *
+     * Drawn in the game rather than through alert(), which blocks the
+     * WebView's thread - the game freezes behind it and on Android it is
+     * dressed with the page's own hostname, which on a packaged app reads as
+     * something has gone wrong.
+     */
+    showAbout() {
+
+        AudioManager.play(this.scene, "click");
+
+        confirmDialog(this.scene, {
+            message:
+                "Little Krishna's\nButter Hunt\n\n" +
+                "Version 1.0\n\n" +
+                "Climb for the butter,\nand hide from Mother.",
+            confirmText: "OK",
+            cancelText: null,
+            height: 480,
+            fontSize: "34px"
+        });
 
     }
 
