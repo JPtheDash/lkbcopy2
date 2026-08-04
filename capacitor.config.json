@@ -1,0 +1,17 @@
+{
+  "appId": "com.dijytal.littlekrishnasbutterhunt",
+  "appName": "Little Krishna's Butter Hunt",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": false
+  },
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": true,
+      "backgroundColor": "#2a1403"
+    }
+  }
+}

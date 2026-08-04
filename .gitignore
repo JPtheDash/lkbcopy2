@@ -28,3 +28,25 @@ dist/
 .vscode/
 .DS_Store
 *.log
+# Personal Claude Code settings; .claude/settings.json is the shared one
+.claude/settings.local.json
+dist-apk/
+android/local.properties
+android/.gradle/
+android/build/
+android/app/build/
+android/capacitor-cordova-android-plugins/
+
+# Python bytecode from the tools in tools/
+__pycache__/
+*.pyc
+
+# Play upload signing key and its passwords. Never commit these.
+android/keystore/
+*.jks
+*.keystore
+keystore.properties
+
+# Built store artifacts - all reproducible from tools/build_android_icons.py
+# and tools/build_store_shots.py, and the bundle is 10MB.
+dist-store/
