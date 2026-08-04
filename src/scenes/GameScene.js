@@ -16,6 +16,7 @@ import sparkImg from "../assets/fx/spark.png";
 import hidePotImg from "../assets/items/pot_hide.png";
 import motherWalkingImg from "../assets/characters/mother_walking.png";
 import motherAngryImg from "../assets/characters/mother_angry.png";
+import krishnaCaughtImg from "../assets/characters/krishna_caught.png";
 import hintSwipeImg from "../assets/ui/hint_swipe.png";
 import hintHandImg from "../assets/ui/hint_hand.png";
 import pauseButtonImg from "../assets/ui/pause_button.png";
@@ -139,9 +140,24 @@ const RUN_ANIM_THRESHOLD = 30;
 // to register as an ending, short enough not to be in the way on a replay.
 const WIN_OUTRO_MS = 1900;
 
-// How long Mother is left standing there glaring before the game over screen
-// covers her. The angry drawing exists to be looked at.
-const CAUGHT_BEAT_MS = 900;
+// How long the catch is held before the game over screen covers it. The
+// drawing exists to be looked at, and a whole tableau takes longer to read
+// than the single angry pose this used to show.
+const CAUGHT_BEAT_MS = 1600;
+
+// The tableau of her catching him by the ear, as a fraction of the screen.
+const CAUGHT_SCENE_WIDTH = 0.88;
+
+// It is drawn on a panel rather than straight onto the dimmed room. The art
+// arrived on a chequerboard under a painted glow, and a few flecks of that
+// glow survive keying in the pockets the figures form - behind his raised
+// hand, under her wrist. Nothing measurable separates those flecks from
+// Mother's own face, so they are covered rather than cut out; the panel also
+// stops a cut-out floating in mid-air with the room showing through it.
+const CAUGHT_PANEL = 0xF6E6CC;
+const CAUGHT_PANEL_EDGE = 0x7A4A22;
+const CAUGHT_PANEL_PAD = 26;
+const CAUGHT_PANEL_RADIUS = 34;
 
 // The pot he hides behind. Tall enough to cover him when he ducks, small
 // enough to read as part of the room - at 130 they were larger than the
@@ -202,6 +218,7 @@ export default class GameScene extends Phaser.Scene {
         loadImage(this, "hidePot", hidePotImg);
         loadImage(this, "motherWalking", motherWalkingImg);
         loadImage(this, "motherAngry", motherAngryImg);
+        loadImage(this, "krishnaCaught", krishnaCaughtImg);
         loadImage(this, "hintSwipe", hintSwipeImg);
         loadImage(this, "hintHand", hintHandImg);
 
@@ -1631,6 +1648,84 @@ export default class GameScene extends Phaser.Scene {
 
     //------------------------------------------------
 
+    /**
+     * The picture of Mother catching him by the ear, on a panel, over the
+     * dimmed room.
+     *
+     * Pinned to the camera and not parented to a Container: Phaser positions
+     * and hit-tests container children against camera scroll, which puts
+     * anything inside one in the wrong place the moment the level scrolls.
+     */
+    showCaughtScene(){
+
+        const art = fitWidth(
+            this.add.image(0, 0, "krishnaCaught"),
+            GAME_WIDTH * CAUGHT_SCENE_WIDTH
+        );
+
+        const x = GAME_WIDTH/2;
+        const y = GAME_HEIGHT/2;
+
+        const w = art.displayWidth + CAUGHT_PANEL_PAD * 2;
+        const h = art.displayHeight + CAUGHT_PANEL_PAD * 2;
+
+        const panel = this.add.graphics();
+
+        panel.fillStyle(CAUGHT_PANEL, 1);
+        panel.fillRoundedRect(x - w/2, y - h/2, w, h, CAUGHT_PANEL_RADIUS);
+        panel.lineStyle(6, CAUGHT_PANEL_EDGE, 1);
+        panel.strokeRoundedRect(x - w/2, y - h/2, w, h, CAUGHT_PANEL_RADIUS);
+
+        art.setPosition(x, y);
+
+        const parts = [panel, art];
+
+        parts.forEach(part => part.setScrollFactor(0).setAlpha(0));
+
+        // Explicit, because the panel is created after the art and would
+        // otherwise draw straight over it - at equal depth Phaser falls back
+        // to the order things were added in.
+        panel.setDepth(299);
+        art.setDepth(300);
+
+        // Comes in as one piece, slightly under size, so it lands rather than
+        // fades - a still picture appearing at rest reads as a loading error.
+        const resting = art.scale;
+
+        art.setScale(resting * 0.88);
+        panel.setScale(0.88);
+
+        // Graphics scales about its own origin rather than the shape drawn
+        // inside it, so it has to be pinned back to the middle of the screen.
+        panel.setPosition(x * 0.12, y * 0.12);
+
+        this.tweens.add({
+            targets: parts,
+            alpha: 1,
+            duration: 260,
+            ease: "Quad.easeOut"
+        });
+
+        this.tweens.add({
+            targets: art,
+            scale: resting,
+            duration: 360,
+            ease: "Back.Out"
+        });
+
+        this.tweens.add({
+            targets: panel,
+            scale: 1,
+            x: 0,
+            y: 0,
+            duration: 360,
+            ease: "Back.Out"
+        });
+
+    }
+
+    //------------------------------------------------
+
     caughtByMother(){
 
         if(this.isGameOver){
@@ -1641,11 +1736,21 @@ export default class GameScene extends Phaser.Scene {
 
         this.cameras.main.shake(320, 0.012);
 
-        // Let her be angry about it before the screen goes dark. Without the
-        // pause the pose swap and the game over overlay land on the same
-        // frame, so the drawing that exists to show her reaction is never
-        // actually seen.
-        this.mother?.showCaught();
+        // Let the catch be seen before the screen goes dark. Without the pause
+        // it and the game over overlay land on the same frame, so the drawing
+        // that exists to show the reaction is never actually seen.
+        //
+        // The tableau has both of them in it, so her own figure is dropped
+        // rather than left standing beside a picture of herself.
+        const tableau = this.textures.exists("krishnaCaught");
+
+        this.mother?.showCaught(!tableau);
+
+        if(tableau){
+
+            this.showCaughtScene();
+
+        }
 
         this.isGameOver = true;
         this.physics.pause();

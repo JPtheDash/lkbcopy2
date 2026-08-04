@@ -49,6 +49,10 @@ ASSETS = {
 
     "characters/krishna_hero.png": (291, False),
 
+    # The tableau shown the moment Mother catches him. Nearly the full width
+    # of the screen, because it is the picture the beat exists to show.
+    "characters/krishna_caught.png": (620, False),
+
     # Mother Yashoda. She is an adult beside a small boy, so she is drawn
     # taller than he is - see MOTHER_HEIGHT in GameScene.js.
     "characters/mother_walking.png": (300, False),

@@ -19,11 +19,33 @@ import { GAME_WIDTH, GAME_HEIGHT } from "../ui/layout";
  * right - rather than arriving at a spot and standing on it. Standing still
  * read as appearing rather than walking, because the fade-in was doing the
  * work the movement should have been doing.
+ *
+ * The crossing is longer than the window she can catch anyone in: she is
+ * already stepping in before it opens and still walking out after it closes.
+ * That is what lets her walk at a believable pace without making her any more
+ * or less dangerous than the levels were balanced for.
  */
 
 // She has to be visible for a moment before she can catch anyone, or being
 // caught has no cause the player can see.
 const ARRIVE_MS = 420;
+
+// How long she is stepping in for before she starts looking, and how long she
+// takes to walk out afterwards.
+//
+// Both sit OUTSIDE the watch window, which is what slows her down without
+// touching the difficulty: crossing in `watch` alone put her at a full pixel
+// per millisecond, which is a run rather than a walk. Spreading the same
+// journey over lead + watch + tail more than halves that, and the window she
+// can actually catch anyone in is still exactly `watch`, so none of the
+// timings playtest.mjs measured have to be rebalanced.
+//
+// The lead is short and the tail is long on purpose. Being on screen but
+// harmless is only intuitive if she is visibly still arriving or visibly
+// leaving; 400ms puts barely a shoulder of her past the edge before she is
+// dangerous, while the tail is time spent walking away.
+const WALK_LEAD_MS = 400;
+const WALK_TAIL_MS = 800;
 
 // Gap after she leaves before the next warning can be scheduled
 const SETTLE_MS = 900;
@@ -203,7 +225,52 @@ export default class MotherWatch {
             repeat: -1
         });
 
+        // She sets off before she is dangerous, so that the banner is backed
+        // up by actually seeing her come through the door.
+        this.after(Math.max(0, this.warning - WALK_LEAD_MS), ()=> this.enter());
+
         this.after(this.warning, ()=> this.arrive());
+
+    }
+
+    //------------------------------------------------
+
+    /**
+     * Starts the walk across the room. Not the same moment as arrive(): this
+     * is her coming in, that is her starting to look.
+     */
+    enter(){
+
+        if(this.scene.isGameOver || !this.figure){
+
+            return;
+
+        }
+
+        this.setPose("motherWalking");
+
+        const half = this.figure.displayWidth/2;
+
+        this.scene.tweens.killTweensOf(this.figure);
+
+        // Already at full opacity, starting off the edge. Fading her up is
+        // what made her read as appearing: she was solid before she had gone
+        // anywhere, so the walk looked like decoration on top of a pop.
+        this.figure
+            .setAngle(0)
+            .setAlpha(1)
+            .setY(GAME_HEIGHT)
+            .setX(-half);
+
+        // Linear. An eased tween drifts to a halt in the middle of the floor,
+        // which is the standing-still this replaced.
+        this.scene.tweens.add({
+            targets: this.figure,
+            x: GAME_WIDTH + half,
+            duration: WALK_LEAD_MS + this.watch + WALK_TAIL_MS,
+            ease: "Linear",
+            onComplete: ()=> this.figure.setAlpha(0)
+        });
 
     }
 
@@ -236,7 +303,7 @@ export default class MotherWatch {
      * She has him. Called by the scene the frame he is seen, before the game
      * over screen lands, so there is a beat of her actually being angry.
      */
-    showCaught(){
+    showCaught(withFigure = true){
 
         if(!this.figure){
 
@@ -248,6 +315,23 @@ export default class MotherWatch {
 
         // Stops her mid-stride, wherever across the room she had got to
         this.scene.tweens.killTweensOf(this.figure);
+
+        // The scene has a tableau with both of them in it, so she is dropped
+        // rather than left standing next to a picture of herself. The gloom
+        // stays - it is what the tableau is read against.
+        if(!withFigure){
+
+            this.figure.setAlpha(0);
+
+            this.scene.tweens.add({
+                targets: this.shadow,
+                alpha: 1,
+                duration: 200
+            });
+
+            return;
+
+        }
 
         this.setPose("motherAngry");
 
@@ -305,36 +389,14 @@ export default class MotherWatch {
             ease: "Sine.easeIn"
         });
 
-        if(this.figure){
+        // The walk itself was started by enter(), a beat ago, and deliberately
+        // is not restarted here - she is already part of the way in.
+        if(this.figure && this.figure.alpha === 0){
 
-            // Walks the room from left to right along the floor, rather than
-            // rising up through it - she is coming through, not surfacing.
-            this.setPose("motherWalking");
-
-            const half = this.figure.displayWidth/2;
-
-            // Already at full opacity, starting off the edge. Fading her up
-            // is what made her read as appearing: she was solid before she
-            // had gone anywhere, so the walk looked like decoration on top of
-            // a pop rather than the thing bringing her in.
-            this.figure
-                .setAngle(0)
-                .setAlpha(1)
-                .setY(GAME_HEIGHT)
-                .setX(-half);
-
-            // Linear, and spanning exactly the window she is dangerous for.
-            // An eased tween would have her drifting to a halt in the middle
-            // of the floor, which is the standing-still this replaced; and
-            // tying the crossing to `watch` keeps "she is on screen" and "she
-            // can catch you" the same statement, so nothing has to be
-            // rebalanced against the timings playtest.mjs measured.
-            this.scene.tweens.add({
-                targets: this.figure,
-                x: GAME_WIDTH + half,
-                duration: this.watch,
-                ease: "Linear"
-            });
+            // enter() never ran, which happens if a visit is forced straight
+            // to arrive(). Put her on screen rather than leave her invisible
+            // and uncatchable-looking.
+            this.enter();
 
         }
 
@@ -358,8 +420,11 @@ export default class MotherWatch {
 
         this.scene.showHideSpots(false);
 
+        // Only the gloom lifts. She is still walking, and has the tail of the
+        // crossing left to see herself out on - fading her here would have her
+        // dissolve in the middle of the floor.
         this.scene.tweens.add({
-            targets: [this.shadow, this.figure].filter(Boolean),
+            targets: this.shadow,
             alpha: 0,
             duration: 340,
             onComplete: ()=>{

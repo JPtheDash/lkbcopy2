@@ -31,6 +31,18 @@ Flags, each for a way the art was delivered:
                  the fill pours in through them.
   --largest      the picture is of one object, so anything left over that is
                  not joined to it is keying residue and goes.
+  --halo N       a glow is painted round the art, and it is not neutral, so
+                 no colour test calls it backdrop and it rings the picture as
+                 a wall the fill cannot cross. Lets the fill through anything
+                 whose darkest channel is N or more. The art's own outlines
+                 are what stop it, so this needs linework to be safe.
+  --islands N    the picture is a scene rather than one object, and parts of
+                 it wall the backdrop off from the border so the fill cannot
+                 reach it. Drops leftover pools of backdrop: chequered ones at
+                 any size, flat ones at N pixels or more. N=0 leaves only the
+                 chequered rule, which is what you want alongside --halo -
+                 with the glow crossed, flat pools are reachable anyway and a
+                 size rule can only do damage. Needs --checker.
   --restore      start again from the delivered file in incoming/originals/.
                  Keying is destructive, so every retry needs this.
 """
@@ -52,6 +64,30 @@ ORIGINALS = ROOT / "incoming" / "originals"
 # a little more than the cells alone would need.
 NEUTRAL_TOLERANCE = 10
 BAND_WIDTH = 8
+
+# How far a pixel may sit from a band and still count towards the chequerboard
+# pattern test. Wider than BAND_WIDTH on purpose: a glow painted over the board
+# shifts both bands, and this test is looking for the alternation rather than
+# for the exact greys.
+PATTERN_BAND = 14
+
+# How much of a sealed pool has to test as chequerboard before the whole pool
+# is called backdrop. Not 1.0: the pattern test needs a full window around a
+# pixel to judge it, so the rim of any pool always reads as unpatterned.
+BOARD_SHARE = 0.5
+
+# There is no third rule for the last few flecks of flat backdrop caught in a
+# pocket of the art - behind a raised hand, under a wrist - and the attempt is
+# recorded here so it is not made again.
+#
+# They are small and warm, and dropping small warm pools looked sound against
+# Krishna: he is blue, so every pale patch of him reads cool and would have
+# been spared whatever its size. It took Mother's face off. Her skin is warm
+# too, and her eyelids, her bindi and the whites of her eyes are all small,
+# so the rule described her features exactly as well as it described the
+# backdrop. Nothing measurable separates the two, and the flecks are a dozen
+# pixels across once the tableau is on screen; the panel it is drawn on is
+# what covers them.
 
 # How big a step between neighbouring pixels counts as a drawn edge rather
 # than the backdrop's own drift, and how hard to blur before measuring it.
@@ -159,6 +195,73 @@ def checker_candidates(im, bands):
                 ok[base + x] = 1
 
     return ok
+
+
+def pale_mask(im, floor):
+    """
+    Pixels pale enough to be the glow a picture is mounted on.
+
+    KrishnaCaught.png is a chequerboard with a soft cream halo painted round
+    the whole tableau. The halo is not neutral - it runs to 33 levels between
+    channels - so checker_candidates() rejects every pixel of it, and since it
+    rings the art completely it walls the fill out of everything inside it:
+    the fill got 59% of the way in and stopped dead at the halo's outer edge.
+
+    Judging on the darkest channel rather than on hue lets the fill cross the
+    halo. What stops it is the linework: this art is drawn with a heavy dark
+    outline round every shape, so pale art inside those outlines - the butter,
+    an eye white - is still never reached from the border.
+    """
+
+    import numpy as np
+
+    a = np.asarray(im.convert("RGB")).astype(np.int16)
+
+    return bytearray((a.min(axis=2) >= floor).reshape(-1).astype(np.uint8))
+
+
+def board_pattern(im, bands, window=31, share=0.18):
+    """
+    Pixels sitting inside an actual chequerboard, judged on the pattern.
+
+    Needed because colour alone cannot tell the board from the butter: both
+    are neutral and both run from about 200 to 255. Measured off this file,
+    the butter in the hanging pot is 210,210,210 and a mid-grey board cell is
+    226,226,226 - there is no threshold between them.
+
+    What does separate them is that a board alternates. Inside a window wider
+    than one cell, board shows a heavy share of BOTH bands at once; the butter
+    shows one band and, where it meets the rim of its pot, a dark brown that
+    belongs to neither. Measured over the sealed pools this has to judge:
+
+        inside the rope triangle   dark 0.49  light 0.24   board
+        the strip beside the rope  dark 0.28  light 0.24   board
+        butter in the hanging pot  dark 0.14  light 0.25   art
+        Krishna's face             dark 0.58  light 0.01   art
+
+    so a floor of 0.18 on the smaller of the two sits clear of both sides.
+    """
+
+    import numpy as np
+
+    grey = np.asarray(im.convert("L")).astype(np.int16)
+
+    def share_of(hit):
+        # Box filter over an integral image - the window is 31 across and the
+        # picture is a megapixel, so a per-pixel loop is not worth writing.
+        pad = np.pad(hit.astype(np.float32), window // 2, mode="edge")
+        total = np.pad(pad.cumsum(0).cumsum(1), ((1, 0), (1, 0)))
+        return (
+            total[window:, window:] - total[:-window, window:]
+            - total[window:, :-window] + total[:-window, :-window]
+        ) / (window * window)
+
+    dark = share_of(np.abs(grey - min(bands)) <= PATTERN_BAND)
+    light = share_of(np.abs(grey - max(bands)) <= PATTERN_BAND)
+
+    both = (dark >= share) & (light >= share)
+
+    return bytearray(both.reshape(-1).astype(np.uint8))
 
 
 def edge_walls(im, threshold=EDGE_THRESHOLD):
@@ -492,6 +595,115 @@ def keep_largest(kept, w, h):
     return out
 
 
+def drop_islands(kept, backdroplike, board, w, h, min_area, sealed):
+    """
+    Cut out pools of backdrop the fill could not get to.
+
+    background_mask() only ever spreads inwards from the border, which is a
+    safety property and not an oversight: art that happens to match the
+    backdrop - an eye white, a grey stone - survives precisely because nothing
+    joins it to the edge. On a cutout of one figure that is exactly right.
+
+    A tableau breaks it. KrishnaCaught.png has two figures, a pot hanging on
+    its rope and a stool spanning the picture, and between them they wall off
+    the middle of the chequerboard from every border. The fill reached 25% of
+    the image and stopped, leaving a lake of chequerboard sitting behind the
+    characters.
+
+    So: anything the fill missed, that still looks like backdrop, and that is
+    too big to be a highlight, goes. The size floor is what keeps the original
+    safety property - pearls and butter are neutral and pale too, but they are
+    small, and a lake is several thousand pixels.
+
+    `backdroplike` must be the GROWN classification, the same one the fill
+    spread through. Raw, each checker cell is walled off from its neighbours
+    by the one-pixel blend between them, so a single lake would come apart
+    into hundreds of separate cell-sized blobs and every one of them would sit
+    under the floor.
+
+    Two rules, because one is not enough. Measured over this tableau, the
+    sealed pools and the pale art overlap on size alone:
+
+        6069px  inside the rope triangle    chequered   backdrop
+        4053px  gap between the figures     flat cream  backdrop
+        2718px  Krishna's face              flat        ART
+        1762px  butter in the hanging pot   flat        ART
+        1267px  strip beside the rope       chequered   backdrop
+
+    The board rule takes the first and last at any size; the size floor takes
+    the cream gap, and has 2718 below it and 4053 above it to sit between.
+
+    A floor of 0 turns the size rule off and leaves only the board rule. That
+    is what this file ends up wanting: once --halo lets the fill through the
+    glow, the flat pools are reachable from the border and get filled anyway,
+    and the only thing left sealed is chequerboard. Keeping the size rule on
+    as well was actively destructive - with the glow crossed, Krishna's pale
+    highlights join into one 7990px pool and a size rule cannot tell that from
+    backdrop. It punched holes through his face.
+    """
+
+    # Only pixels currently being kept AND looking like backdrop can start one
+    solid = bytearray(
+        1 if kept[i] and backdroplike[i] else 0 for i in range(w * h)
+    )
+
+    out = bytearray(kept)
+    dropped = 0
+
+    for start in range(w * h):
+
+        if not solid[start]:
+            continue
+
+        blob = []
+        queue = deque([start])
+        solid[start] = 0
+
+        while queue:
+
+            i = queue.popleft()
+            blob.append(i)
+            x, y = i % w, i // w
+
+            for nx, ny in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+                if 0 <= nx < w and 0 <= ny < h:
+                    j = ny * w + nx
+                    if solid[j]:
+                        solid[j] = 0
+                        queue.append(j)
+
+        # Chequerboard goes at any size, because the pattern is proof on its
+        # own - no pale patch of real art alternates between the two bands.
+        # Anything else has only its size to go on, and a sealed pool of flat
+        # backdrop is bigger than the pale details that have to survive.
+        if board is not None:
+            chequered = sum(1 for i in blob if board[i]) / len(blob)
+        else:
+            chequered = 0.0
+
+        # Nothing under the fleck floor is judged at all. A pool this small is
+        # usually not a pool: it is a few pale pixels on the rim of something
+        # real, where the art fades towards the backdrop before the outline
+        # starts, and taking those punches pinholes along every edge.
+        if len(blob) < MIN_BLOB:
+            continue
+
+        if chequered >= BOARD_SHARE:
+            why = "chequerboard"
+        elif min_area and len(blob) >= min_area:
+            why = "flat"
+        else:
+            continue
+
+        dropped += len(blob)
+        sealed.append((len(blob), why))
+
+        for i in blob:
+            out[i] = 0
+
+    return out, dropped
+
+
 def fill_holes(kept, w, h, max_area):
     """
     Make opaque any transparent pocket that is sealed inside the art.
@@ -545,7 +757,7 @@ def fill_holes(kept, w, h, max_area):
 
 
 def key(path, tolerance=DEFAULT_TOLERANCE, checker=False, edges=False,
-        close=0, largest=False):
+        close=0, largest=False, islands=None, halo=0):
 
     im = Image.open(path).convert("RGB")
     w, h = im.size
@@ -554,6 +766,10 @@ def key(path, tolerance=DEFAULT_TOLERANCE, checker=False, edges=False,
 
     if checker and bands is None:
         raise SystemExit(f"{path}: no checkerboard found, drop --checker")
+
+    # Kept so drop_islands can spread through the same classification the fill
+    # did - see the note in it about why the grown one is the only usable form.
+    allowed = None
 
     if edges:
         # Walls stop the fill; the colour test still runs alongside them as a
@@ -572,13 +788,47 @@ def key(path, tolerance=DEFAULT_TOLERANCE, checker=False, edges=False,
         # walled off from each other and the fill never leaves the border.
         # Growing it by one bridges the seams - and takes the matching fringe
         # off the outline of the art, which no colour test would have caught.
-        mask = background_mask(
-            im, tolerance, grow(checker_candidates(im, bands), w, h)
-        )
+        allowed = grow(checker_candidates(im, bands), w, h)
+
+        # A glow painted round the art is not neutral and so is none of it
+        # classified above, which leaves it ringing the picture as a wall the
+        # fill cannot cross. Judging on the darkest channel gets through it.
+        if halo:
+            pale = pale_mask(im, halo)
+            allowed = bytearray(
+                1 if allowed[i] or pale[i] else 0 for i in range(w * h)
+            )
+
+        mask = background_mask(im, tolerance, allowed)
     else:
         mask = background_mask(im, tolerance)
 
     kept = despeckle(bytes(0 if m else 255 for m in mask), w, h)
+
+    # Backdrop the fill was walled out of. Before closing, which would other-
+    # wise bridge the pool to the art and weld it permanently in place.
+    if islands is not None and allowed is not None:
+
+        sealed = []
+
+        kept, sank = drop_islands(
+            kept, allowed, board_pattern(im, bands), w, h, islands, sealed
+        )
+
+        if sealed:
+
+            tally = {}
+            for n, why in sealed:
+                pools, px = tally.get(why, (0, 0))
+                tally[why] = (pools + 1, px + n)
+
+            detail = ", ".join(
+                f"{pools} {why} ({px}px)" for why, (pools, px) in sorted(tally.items())
+            )
+            biggest = ", ".join(f"{n}px" for n, _ in sorted(sealed, reverse=True)[:3])
+
+            print(f"  {Path(path).name}: sealed backdrop dropped - {detail}"
+                  f"; largest {biggest}", flush=True)
 
     if close:
         # Closing first, then despeckling again: bridging the strands merges
@@ -653,6 +903,18 @@ def main():
     if largest:
         args.remove("--largest")
 
+    islands = None
+    if "--islands" in args:
+        i = args.index("--islands")
+        islands = int(args[i + 1])
+        del args[i:i + 2]
+
+    halo = 0
+    if "--halo" in args:
+        i = args.index("--halo")
+        halo = int(args[i + 1])
+        del args[i:i + 2]
+
     close = 0
     if "--close" in args:
         i = args.index("--close")
@@ -675,7 +937,8 @@ def main():
         if restore and (ORIGINALS / path.name).exists():
             shutil.copy2(ORIGINALS / path.name, path)
 
-        out, pct, bands = key(path, tolerance, checker, edges, close, largest)
+        out, pct, bands = key(path, tolerance, checker, edges, close, largest,
+                              islands, halo)
 
         # Keying is destructive and the tolerance usually needs a second try,
         # so park the delivered file outside src/ where it neither ships nor

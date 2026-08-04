@@ -28,6 +28,7 @@ INCOMING = ROOT / "incoming"
 TARGETS = {
     "krishna_sheet.png":     "characters",
     "Krishna_hero.png":      "characters",
+    "KrishnaCaught.png":     "characters",
     "walkingmother.jpg":     "characters",
     "angrymother.jpg":       "characters",
     "room_tall.jpg":         "backgrounds",
@@ -62,6 +63,7 @@ TARGETS = {
 RENAME = {
     "Title.png":         "logo.png",
     "Krishna_hero.png":  "krishna_hero.png",
+    "KrishnaCaught.png": "krishna_caught.png",
     "emptypot.jpg":      "pot_hide.png",
     "walkingmother.jpg": "mother_walking.png",
     "angrymother.jpg":   "mother_angry.png",

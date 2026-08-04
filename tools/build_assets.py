@@ -56,6 +56,10 @@ KEYING = {
     "walkingmother.jpg": "checker",
     "angrymother.jpg": "checker",
 
+    # A PNG, but with the chequerboard painted in rather than a real alpha
+    # channel - every pixel in it arrived fully opaque.
+    "KrishnaCaught.png": "checker",
+
     "platform_wood.png": "flood",
     "platform_stone.png": "flood",
     "platform_cracked.png": "flood",
@@ -78,10 +82,45 @@ CLOSING = {}
 # Pictures of exactly one thing. Whatever survives keying without being joined
 # to that thing is residue - mother_angry.jpg came out with a 202px scrap of
 # chequerboard floating beside her, well over despeckle's 64px floor.
+#
+# KrishnaCaught.png is deliberately NOT on this list, even though it is keyed
+# the same way: it is a whole tableau, and the pot hanging on its rope and the
+# ones on the floor are separate blobs from the two figures. Keeping only the
+# largest would throw all of them away.
 SINGLE_SUBJECT = {
     "emptypot.jpg",
     "walkingmother.jpg",
     "angrymother.jpg",
+}
+
+# Scenes, where something in the picture walls the backdrop off from the
+# border and the fill - which only ever spreads inwards from the edge - cannot
+# get to it. The value is the smallest pool worth cutting out.
+#
+# In KrishnaCaught.png the two figures, the hanging pot and the stool between
+# them enclose most of the middle of the chequerboard. 1200 is well above the
+# pale details that must survive (pearls, the butter, an eye white) and well
+# below the lake, which runs to tens of thousands of pixels.
+# Scenes get two extra passes, and the numbers are (pool floor, glow floor).
+#
+# KrishnaCaught.png is mounted on a soft cream glow that rings the whole
+# tableau. The glow is warm - up to 69 levels between channels where it is
+# strongest - so no colour test calls it backdrop, and it walled the fill out
+# of everything inside it: the fill reached 59% of the picture and stopped.
+#
+# 150 is the floor on the darkest channel. It has to be this low because the
+# glow washes the board behind the figures down to 159, and it can be this low
+# safely because nothing pale is reachable without crossing the art's own
+# linework: Mother's arm is 20, her face 93, the stool 29. The butter is 175
+# and survives on being enclosed, not on being bright.
+#
+# The pool floor is 0, meaning only chequered pools are cut and flat ones are
+# left alone. Once the glow is crossed the flat pools are reachable from the
+# border and get filled anyway, so the size rule has nothing left to do except
+# damage: Krishna's pale highlights join into one 7990px pool that no size
+# rule can tell from backdrop, and it punched holes through his face.
+SCENES = {
+    "KrishnaCaught.png": (0, 150),
 }
 
 # Low enough that the fill stops at the art, high enough to cross the
@@ -161,6 +200,10 @@ def key():
 
         if name in SINGLE_SUBJECT:
             flags += ("--largest",)
+
+        if name in SCENES:
+            pools, glow = SCENES[name]
+            flags += ("--islands", str(pools), "--halo", str(glow))
 
         batches.setdefault(flags, []).append(
             ROOT / "src" / "assets" / TARGETS[name] / staged(name)
