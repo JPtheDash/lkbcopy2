@@ -71,8 +71,10 @@ const BOTTOM = FLOOR_Y - 160;
 
 // Hiding pots sit at the end of the ledge Krishna does NOT land on, so hiding
 // means turning round and running back rather than already standing there.
-// That scramble is the whole mechanic.
-const HIDE_OFFSET = 95;
+// That scramble is the whole mechanic, so the level fixes which SIDE the pot
+// stands on and nothing else. How far along it sits is picked per attempt by
+// createHideSpot(), which is the only place that knows how wide the plank and
+// the pot actually came out on screen.
 
 //-------------------------------------------------------------------
 // Timers
@@ -154,7 +156,7 @@ function climb({
             // decision, which is the point of them.
             ...(i % hideEvery === 0 || fakes.includes(i) ? {
                 hide: {
-                    x: x - travel * HIDE_OFFSET,
+                    side: -travel,
                     real: !fakes.includes(i)
                 }
             } : {})

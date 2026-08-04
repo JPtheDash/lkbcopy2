@@ -152,6 +152,21 @@ const HIDE_POT_HEIGHT = 112;
 // itself, so it is judged on reaching cover rather than on hitting a mark.
 const HIDE_TOLERANCE = 60;
 
+// How far along the ledge the pot stands, measured from the centre. Picked
+// fresh on every attempt between these two, on the side the level nominates.
+//
+// Neither bound is cosmetic. Inside HIDE_NEAR the pot covers the spot Krishna
+// lands on - within HIDE_TOLERANCE of it - so he would touch down already
+// hidden and the scramble the whole mechanic rests on would never happen.
+// Past the end of the plank it stands on air.
+const HIDE_NEAR = 78;
+
+// How much of the pot may overhang the end of the plank. A little reads as
+// standing at the very edge, and without any the band closes up completely on
+// the narrow ledges: they are 260 wide and the pot is 116, which leaves 72 of
+// travel against a floor of 78.
+const HIDE_OVERHANG = 16;
+
 // Krishna is 216 tall and the pot is 112, so standing behind one hides
 // nothing. Ducking is what makes cover work - and it is why the pot can stay
 // small enough to read as part of the room instead of towering over the
@@ -721,9 +736,23 @@ export default class GameScene extends Phaser.Scene {
     createHideSpot(spec, plank){
 
         const pot = fitHeight(
-            this.add.image(spec.x, 0, "hidePot"),
+            this.add.image(0, 0, "hidePot"),
             HIDE_POT_HEIGHT
         );
+
+        // Measured off what the two actually came out as on screen rather
+        // than from the numbers the level asked for, so a narrower ledge
+        // tightens the band by itself and nothing has to be kept in step.
+        const reach = Math.round(
+            plank.displayWidth/2 - pot.displayWidth/2 + HIDE_OVERHANG
+        );
+
+        const offset = Phaser.Math.Between(
+            HIDE_NEAR,
+            Math.max(HIDE_NEAR, reach)
+        );
+
+        pot.setX(plank.x + spec.side * offset);
 
         // Standing on the plank, not floating over it
         pot.setY(plank.y - plank.displayHeight/2 - pot.displayHeight/2 + 12);
@@ -731,7 +760,7 @@ export default class GameScene extends Phaser.Scene {
         // In front of Krishna, so ducking behind it actually looks like it
         pot.setDepth(20);
 
-        return { pot, real: spec.real, x: spec.x };
+        return { pot, real: spec.real };
 
     }
 
