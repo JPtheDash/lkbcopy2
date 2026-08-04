@@ -14,6 +14,8 @@ import platformCracked from "../assets/platforms/platform_cracked.png";
 import platformCloud from "../assets/platforms/platform_cloud.png";
 import sparkImg from "../assets/fx/spark.png";
 import hidePotImg from "../assets/items/pot_hide.png";
+import motherWalkingImg from "../assets/characters/mother_walking.png";
+import motherAngryImg from "../assets/characters/mother_angry.png";
 import hintSwipeImg from "../assets/ui/hint_swipe.png";
 import hintHandImg from "../assets/ui/hint_hand.png";
 import pauseButtonImg from "../assets/ui/pause_button.png";
@@ -137,6 +139,10 @@ const RUN_ANIM_THRESHOLD = 30;
 // to register as an ending, short enough not to be in the way on a replay.
 const WIN_OUTRO_MS = 1900;
 
+// How long Mother is left standing there glaring before the game over screen
+// covers her. The angry drawing exists to be looked at.
+const CAUGHT_BEAT_MS = 900;
+
 // The pot he hides behind. Tall enough to cover him when he ducks, small
 // enough to read as part of the room - at 130 they were larger than the
 // ledges they stood on and the level looked like a pottery shelf.
@@ -179,6 +185,8 @@ export default class GameScene extends Phaser.Scene {
         loadImage(this, "krishnaSitting", krishnaSitting);
         loadImage(this, "spark", sparkImg);
         loadImage(this, "hidePot", hidePotImg);
+        loadImage(this, "motherWalking", motherWalkingImg);
+        loadImage(this, "motherAngry", motherAngryImg);
         loadImage(this, "hintSwipe", hintSwipeImg);
         loadImage(this, "hintHand", hintHandImg);
 
@@ -1604,7 +1612,22 @@ export default class GameScene extends Phaser.Scene {
 
         this.cameras.main.shake(320, 0.012);
 
-        this.gameOver("MOTHER SAW YOU!");
+        // Let her be angry about it before the screen goes dark. Without the
+        // pause the pose swap and the game over overlay land on the same
+        // frame, so the drawing that exists to show her reaction is never
+        // actually seen.
+        this.mother?.showCaught();
+
+        this.isGameOver = true;
+        this.physics.pause();
+        this.gameTimer.paused = true;
+
+        this.time.delayedCall(CAUGHT_BEAT_MS, ()=>{
+
+            this.isGameOver = false;
+            this.gameOver("MOTHER SAW YOU!");
+
+        });
 
     }
 

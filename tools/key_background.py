@@ -29,6 +29,8 @@ Flags, each for a way the art was delivered:
   --close N      the art is a mesh of separate strokes with backdrop showing
                  between them - hair, foliage - and the gaps need bridging or
                  the fill pours in through them.
+  --largest      the picture is of one object, so anything left over that is
+                 not joined to it is keying residue and goes.
   --restore      start again from the delivered file in incoming/originals/.
                  Keying is destructive, so every retry needs this.
 """
@@ -542,7 +544,8 @@ def fill_holes(kept, w, h, max_area):
     return out
 
 
-def key(path, tolerance=DEFAULT_TOLERANCE, checker=False, edges=False, close=0):
+def key(path, tolerance=DEFAULT_TOLERANCE, checker=False, edges=False,
+        close=0, largest=False):
 
     im = Image.open(path).convert("RGB")
     w, h = im.size
@@ -585,7 +588,18 @@ def key(path, tolerance=DEFAULT_TOLERANCE, checker=False, edges=False, close=0):
             bytes(255 if k else 0 for k in close_gaps(kept, w, h, close)), w, h
         )
 
+    # A picture of one thing keeps only that thing. despeckle's floor is 64px
+    # and what a chequerboard leaves behind can be bigger: mother_angry came
+    # out with a 202px scrap of backdrop floating beside her, which no size
+    # threshold would have caught without eating something real elsewhere.
+    #
+    # Always done after closing, never instead of it - closing is what joins a
+    # mesh into the one blob this then keeps.
+    if largest or close:
+
         kept = keep_largest(kept, w, h)
+
+    if close:
 
         # A pocket several window-widths across was never something closing
         # was meant to reach, so it is left alone as real backdrop.
@@ -635,6 +649,10 @@ def main():
     if edges:
         args.remove("--edges")
 
+    largest = "--largest" in args
+    if largest:
+        args.remove("--largest")
+
     close = 0
     if "--close" in args:
         i = args.index("--close")
@@ -657,7 +675,7 @@ def main():
         if restore and (ORIGINALS / path.name).exists():
             shutil.copy2(ORIGINALS / path.name, path)
 
-        out, pct, bands = key(path, tolerance, checker, edges, close)
+        out, pct, bands = key(path, tolerance, checker, edges, close, largest)
 
         # Keying is destructive and the tolerance usually needs a second try,
         # so park the delivered file outside src/ where it neither ships nor

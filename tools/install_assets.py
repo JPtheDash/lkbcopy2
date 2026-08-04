@@ -27,9 +27,13 @@ INCOMING = ROOT / "incoming"
 # and left alone rather than guessed at.
 TARGETS = {
     "krishna_sheet.png":     "characters",
-    "krishna_hero.png":      "characters",
+    "Krishna_hero.png":      "characters",
+    "walkingmother.jpg":     "characters",
+    "angrymother.jpg":       "characters",
     "room_tall.jpg":         "backgrounds",
     "butter_pot.png":        "items",
+    "emptypot.jpg":          "items",
+    "Title.png":             "ui",
     "platform_wood.png":     "platforms",
     "platform_stone.png":    "platforms",
     "platform_cloud.png":    "platforms",
@@ -43,7 +47,6 @@ TARGETS = {
     "world_vrindavan.png":   "ui",
     "world_yamuna.png":      "ui",
     "world_mathura.png":     "ui",
-    "logo.png":              "ui",
     "ribbon_perfect.png":    "ui",
     "hint_swipe.png":        "ui",
     "hint_hand.png":         "ui",
@@ -51,6 +54,24 @@ TARGETS = {
     "icon_sound.png":        "ui",
     "icon_language.png":     "ui",
 }
+
+# Delivered art does not always arrive under the name the game uses, and some
+# of it arrives as JPEG. Keying gives a file an alpha channel, which a JPEG
+# cannot hold, so those have to become PNG on the way in - staging converts
+# rather than copying when the extension changes.
+RENAME = {
+    "Title.png":         "logo.png",
+    "Krishna_hero.png":  "krishna_hero.png",
+    "emptypot.jpg":      "pot_hide.png",
+    "walkingmother.jpg": "mother_walking.png",
+    "angrymother.jpg":   "mother_angry.png",
+}
+
+
+def staged(name):
+    """The filename a delivered file takes once it is in src/assets."""
+    return RENAME.get(name, name)
+
 
 # Backgrounds are meant to be opaque; everything else needs transparency.
 OPAQUE_OK = {"room_tall.jpg"}

@@ -23,7 +23,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-from install_assets import TARGETS
+from PIL import Image
+
+from install_assets import TARGETS, staged
 
 ROOT = Path(__file__).resolve().parent.parent
 ORIGINALS = ROOT / "incoming" / "originals"
@@ -37,11 +39,22 @@ TOOLS = Path(__file__).resolve().parent
 #   edges    a soft grey gradient, with a glow painted around the art - the
 #            fill has to be stopped by how sharply the picture changes, not
 #            by colour, because the backdrop drifts as far as the art does
+#
+# Keyed by the DELIVERED name, not the staged one. Anything absent from this
+# list already carries a usable alpha channel - Title.png and Krishna_hero.png
+# both arrived properly cut out, and keying an already-keyed file a second
+# time eats its edges.
 KEYING = {
     "krishna_sheet.png": "checker",
     "icon_music.png": "checker",
     "icon_sound.png": "checker",
     "icon_language.png": "checker",
+
+    # Delivered as JPEG with the editor's chequerboard rendered into the
+    # pixels - 23px cells around 200/239 grey, measured off the files
+    "emptypot.jpg": "checker",
+    "walkingmother.jpg": "checker",
+    "angrymother.jpg": "checker",
 
     "platform_wood.png": "flood",
     "platform_stone.png": "flood",
@@ -50,20 +63,25 @@ KEYING = {
     "world_yamuna.png": "flood",
     "world_mathura.png": "flood",
 
-    "krishna_hero.png": "edges",
     "butter_pot.png": "edges",
-    "logo.png": "edges",
 }
 
 # Art drawn as a mesh of separate strokes rather than one solid shape, and how
-# wide a gap to bridge in it. Krishna's hair is a pile of individual locks
-# with backdrop showing between them; without this the fill pours through the
-# gaps and he comes out wearing a grey wig.
+# wide a gap to bridge in it - hair, foliage, anything the fill can pour
+# through the gaps of.
 #
-# Nothing else needs it, and it is not free: the window also rounds off any
-# genuine notch in the silhouette narrower than itself.
-CLOSING = {
-    "krishna_hero.png": 21,
+# Empty now that the hero arrives pre-cut. Kept because the next delivery of
+# a hand-keyed character will need it again, and because the reason it exists
+# is not obvious from the code that uses it.
+CLOSING = {}
+
+# Pictures of exactly one thing. Whatever survives keying without being joined
+# to that thing is residue - mother_angry.jpg came out with a 202px scrap of
+# chequerboard floating beside her, well over despeckle's 64px floor.
+SINGLE_SUBJECT = {
+    "emptypot.jpg",
+    "walkingmother.jpg",
+    "angrymother.jpg",
 }
 
 # Low enough that the fill stops at the art, high enough to cross the
@@ -93,7 +111,7 @@ def stage():
             f"{ORIGINALS.relative_to(ROOT)}/ is missing - see incoming/README.md"
         )
 
-    staged = 0
+    count = 0
 
     for name, folder in TARGETS.items():
 
@@ -104,12 +122,24 @@ def stage():
                   flush=True)
             continue
 
-        dest = ROOT / "src" / "assets" / folder / name
+        dest = ROOT / "src" / "assets" / folder / staged(name)
         dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source, dest)
-        staged += 1
 
-    print(f"staged {staged} originals\n", flush=True)
+        if source.suffix.lower() == dest.suffix.lower():
+            shutil.copy2(source, dest)
+        else:
+            # Only ever JPEG becoming PNG, and it has to happen here: keying
+            # writes an alpha channel back to this same path, and a JPEG
+            # cannot carry one - the transparency would be silently discarded
+            # and the art would ship as a rectangle of backdrop.
+            with Image.open(source) as im:
+                im.convert("RGBA").save(dest)
+
+            print(f"  {name} -> {dest.name} (converted)", flush=True)
+
+        count += 1
+
+    print(f"staged {count} originals\n", flush=True)
 
 
 def key():
@@ -129,8 +159,11 @@ def key():
         if name in CLOSING:
             flags += ("--close", str(CLOSING[name]))
 
+        if name in SINGLE_SUBJECT:
+            flags += ("--largest",)
+
         batches.setdefault(flags, []).append(
-            ROOT / "src" / "assets" / TARGETS[name] / name
+            ROOT / "src" / "assets" / TARGETS[name] / staged(name)
         )
 
     for flags, files in batches.items():
