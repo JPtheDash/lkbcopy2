@@ -56,7 +56,7 @@ string players see and can say whatever you like.
 | Permissions | `INTERNET` only. No ad ID, no location, no storage |
 | Cleartext HTTP | off — the game is entirely local |
 | Native code | none, so the 16 KB page-size rule does not apply |
-| Download size | 8.6–9.3 MB depending on device, against a 200 MB limit |
+| Download size | 11.0–11.7 MB depending on device, against a 200 MB limit |
 | Icon | adaptive, five densities, checked under circle/squircle/square masks |
 
 ## What only you can do, in the Play Console

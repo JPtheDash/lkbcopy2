@@ -65,8 +65,23 @@ if [ "$VARIANT" = "release" ]; then
             ;;
     esac
 
-    "$JAVA_HOME/bin/keytool" -printcert -jarfile "$DEST" \
-        | grep -E "Owner:|Valid from:" | sed 's/^/  /'
+    # apksigner, not keytool. keytool -printcert -jarfile only reads v1
+    # signatures - the old JAR scheme - and this APK deliberately has none:
+    # minSdk is 24, so AGP signs v2 only and drops v1 (see app/build.gradle).
+    # Asked about a v2-only APK keytool prints nothing at all, which under
+    # `set -o pipefail` made the grep fail and took this whole script down
+    # with it, on a build that was correctly signed the entire time.
+    APKSIGNER="$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner 2>/dev/null | tail -1)"
+
+    if [ -z "$APKSIGNER" ]; then
+        echo "No apksigner under $ANDROID_HOME/build-tools - cannot verify" >&2
+        exit 1
+    fi
+
+    # apksigner exits non-zero if nothing verifies it, so this is the check
+    # and not just a printout.
+    "$APKSIGNER" verify --print-certs "$DEST" \
+        | grep -E "certificate DN:|SHA-256 digest:" | sed 's/^/  /'
 fi
 
 echo
