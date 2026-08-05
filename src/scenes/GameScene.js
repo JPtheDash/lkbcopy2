@@ -17,6 +17,7 @@ import hidePotImg from "../assets/items/pot_hide.png";
 import motherWalkingImg from "../assets/characters/mother_walking.png";
 import motherAngryImg from "../assets/characters/mother_angry.png";
 import krishnaCaughtImg from "../assets/characters/krishna_caught.png";
+import roomTallImg from "../assets/backgrounds/room_tall.jpg";
 import hintSwipeImg from "../assets/ui/hint_swipe.png";
 import hintHandImg from "../assets/ui/hint_hand.png";
 import pauseButtonImg from "../assets/ui/pause_button.png";
@@ -28,7 +29,7 @@ import AudioManager from "../managers/AudioManager";
 import LevelManager from "../managers/LevelManager";
 import Levels, { TOP_LIMIT } from "../data/levels";
 import MotherWatch from "../game/MotherWatch";
-import { fitWidth, fitHeight, GAME_WIDTH, GAME_HEIGHT, WORLD_HEIGHT, FLOOR_Y } from "../ui/layout";
+import { fitWidth, fitHeight, coverScreen, GAME_WIDTH, GAME_HEIGHT, WORLD_HEIGHT, FLOOR_Y } from "../ui/layout";
 
 //-------------------------
 // Movement tuning
@@ -146,18 +147,15 @@ const WIN_OUTRO_MS = 1900;
 const CAUGHT_BEAT_MS = 1600;
 
 // The tableau of her catching him by the ear, as a fraction of the screen.
-const CAUGHT_SCENE_WIDTH = 0.88;
+const CAUGHT_SCENE_WIDTH = 0.92;
 
-// It is drawn on a panel rather than straight onto the dimmed room. The art
-// arrived on a chequerboard under a painted glow, and a few flecks of that
-// glow survive keying in the pockets the figures form - behind his raised
-// hand, under her wrist. Nothing measurable separates those flecks from
-// Mother's own face, so they are covered rather than cut out; the panel also
-// stops a cut-out floating in mid-air with the room showing through it.
-const CAUGHT_PANEL = 0xF6E6CC;
-const CAUGHT_PANEL_EDGE = 0x7A4A22;
-const CAUGHT_PANEL_PAD = 26;
-const CAUGHT_PANEL_RADIUS = 34;
+// The catch cuts to the room itself rather than to a panel: room_tall is the
+// full-height painting of Yashoda's house, and it is otherwise only used as
+// the plate the scrolling wall and floor were cut out of.
+//
+// Darkened a little so the two figures read against it - it is a busy picture
+// and the tableau has to be the thing being looked at.
+const CAUGHT_ROOM_TINT = 0x6B5030;
 
 // The pot he hides behind. Tall enough to cover him when he ducks, small
 // enough to read as part of the room - at 130 they were larger than the
@@ -219,6 +217,7 @@ export default class GameScene extends Phaser.Scene {
         loadImage(this, "motherWalking", motherWalkingImg);
         loadImage(this, "motherAngry", motherAngryImg);
         loadImage(this, "krishnaCaught", krishnaCaughtImg);
+        loadImage(this, "roomTall", roomTallImg);
         loadImage(this, "hintSwipe", hintSwipeImg);
         loadImage(this, "hintHand", hintHandImg);
 
@@ -1649,8 +1648,8 @@ export default class GameScene extends Phaser.Scene {
     //------------------------------------------------
 
     /**
-     * The picture of Mother catching him by the ear, on a panel, over the
-     * dimmed room.
+     * The catch, as a scene: the room itself behind, and the two of them on
+     * top of it.
      *
      * Pinned to the camera and not parented to a Container: Phaser positions
      * and hit-tests container children against camera scroll, which puts
@@ -1658,67 +1657,44 @@ export default class GameScene extends Phaser.Scene {
      */
     showCaughtScene(){
 
-        const art = fitWidth(
-            this.add.image(0, 0, "krishnaCaught"),
-            GAME_WIDTH * CAUGHT_SCENE_WIDTH
-        );
-
         const x = GAME_WIDTH/2;
         const y = GAME_HEIGHT/2;
 
-        const w = art.displayWidth + CAUGHT_PANEL_PAD * 2;
-        const h = art.displayHeight + CAUGHT_PANEL_PAD * 2;
+        const room = coverScreen(this.add.image(0, 0, "roomTall"))
+            .setTint(CAUGHT_ROOM_TINT);
 
-        const panel = this.add.graphics();
+        const art = fitWidth(
+            this.add.image(x, y, "krishnaCaught"),
+            GAME_WIDTH * CAUGHT_SCENE_WIDTH
+        );
 
-        panel.fillStyle(CAUGHT_PANEL, 1);
-        panel.fillRoundedRect(x - w/2, y - h/2, w, h, CAUGHT_PANEL_RADIUS);
-        panel.lineStyle(6, CAUGHT_PANEL_EDGE, 1);
-        panel.strokeRoundedRect(x - w/2, y - h/2, w, h, CAUGHT_PANEL_RADIUS);
-
-        art.setPosition(x, y);
-
-        const parts = [panel, art];
+        const parts = [room, art];
 
         parts.forEach(part => part.setScrollFactor(0).setAlpha(0));
 
-        // Explicit, because the panel is created after the art and would
-        // otherwise draw straight over it - at equal depth Phaser falls back
-        // to the order things were added in.
-        panel.setDepth(299);
+        // Explicit, because the art is created after the room and equal depths
+        // fall back to the order things were added in - which is only right
+        // here by accident, and would stop being right on any reorder.
+        room.setDepth(298);
         art.setDepth(300);
 
-        // Comes in as one piece, slightly under size, so it lands rather than
-        // fades - a still picture appearing at rest reads as a loading error.
+        // The room fades up; the figures land, slightly under size, so the cut
+        // reads as arriving rather than as a picture that was always there.
         const resting = art.scale;
 
-        art.setScale(resting * 0.88);
-        panel.setScale(0.88);
-
-        // Graphics scales about its own origin rather than the shape drawn
-        // inside it, so it has to be pinned back to the middle of the screen.
-        panel.setPosition(x * 0.12, y * 0.12);
+        art.setScale(resting * 0.86);
 
         this.tweens.add({
             targets: parts,
             alpha: 1,
-            duration: 260,
+            duration: 240,
             ease: "Quad.easeOut"
         });
 
         this.tweens.add({
             targets: art,
             scale: resting,
-            duration: 360,
-            ease: "Back.Out"
-        });
-
-        this.tweens.add({
-            targets: panel,
-            scale: 1,
-            x: 0,
-            y: 0,
-            duration: 360,
+            duration: 380,
             ease: "Back.Out"
         });
 

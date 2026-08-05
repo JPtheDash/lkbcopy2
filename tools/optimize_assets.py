@@ -47,6 +47,11 @@ ASSETS = {
     # The empty clay pot Krishna hides behind, delivered art
     "items/pot_hide.png": (130, False),
 
+    # The same pot filled with butter. The level complete screen scores a run
+    # in pots rather than stars, so these two are drawn side by side there and
+    # want to come out the same size.
+    "items/pot_full.png": (130, False),
+
     "characters/krishna_hero.png": (291, False),
 
     # The tableau shown the moment Mother catches him. Nearly the full width

@@ -34,6 +34,7 @@ TARGETS = {
     "room_tall.jpg":         "backgrounds",
     "butter_pot.png":        "items",
     "emptypot.jpg":          "items",
+    "filledpot.jpg":         "items",
     "Title.png":             "ui",
     "platform_wood.png":     "platforms",
     "platform_stone.png":    "platforms",
@@ -65,6 +66,7 @@ RENAME = {
     "Krishna_hero.png":  "krishna_hero.png",
     "KrishnaCaught.png": "krishna_caught.png",
     "emptypot.jpg":      "pot_hide.png",
+    "filledpot.jpg":     "pot_full.png",
     "walkingmother.jpg": "mother_walking.png",
     "angrymother.jpg":   "mother_angry.png",
 }

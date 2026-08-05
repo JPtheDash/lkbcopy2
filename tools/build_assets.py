@@ -53,6 +53,7 @@ KEYING = {
     # Delivered as JPEG with the editor's chequerboard rendered into the
     # pixels - 23px cells around 200/239 grey, measured off the files
     "emptypot.jpg": "checker",
+    "filledpot.jpg": "checker",
     "walkingmother.jpg": "checker",
     "angrymother.jpg": "checker",
 
@@ -89,6 +90,7 @@ CLOSING = {}
 # largest would throw all of them away.
 SINGLE_SUBJECT = {
     "emptypot.jpg",
+    "filledpot.jpg",
     "walkingmother.jpg",
     "angrymother.jpg",
 }
@@ -119,8 +121,14 @@ SINGLE_SUBJECT = {
 # border and get filled anyway, so the size rule has nothing left to do except
 # damage: Krishna's pale highlights join into one 7990px pool that no size
 # rule can tell from backdrop, and it punched holes through his face.
+# The box is the pocket between Krishna's side and Mother's forearm, sealed on
+# all four sides by the two of them. Nothing automatic reaches it: the fill has
+# no path in, the pattern test cannot judge it because every window there is
+# mostly arm, and its cells are darker than Krishna's own skin so no threshold
+# gets at it either. Inside the box the neighbours are known and hand-checked,
+# which is what makes a saturation test safe there and nowhere else.
 SCENES = {
-    "KrishnaCaught.png": (0, 150),
+    "KrishnaCaught.png": (0, 150, [(692, 250, 812, 508)]),
 }
 
 # Low enough that the fill stops at the art, high enough to cross the
@@ -202,8 +210,10 @@ def key():
             flags += ("--largest",)
 
         if name in SCENES:
-            pools, glow = SCENES[name]
+            pools, glow, pockets = SCENES[name]
             flags += ("--islands", str(pools), "--halo", str(glow))
+            for box in pockets:
+                flags += ("--erase", ",".join(str(v) for v in box))
 
         batches.setdefault(flags, []).append(
             ROOT / "src" / "assets" / TARGETS[name] / staged(name)

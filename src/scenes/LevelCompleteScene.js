@@ -5,8 +5,8 @@ import LevelManager from "../managers/LevelManager";
 import SaveManager from "../managers/SaveManager";
 
 import happyKrishna from "../assets/ui/krishna_happy_butter.png";
-import starEmpty from "../assets/ui/star_empty.png";
-import starFull from "../assets/ui/star_full.png";
+import potEmpty from "../assets/items/pot_hide.png";
+import potFull from "../assets/items/pot_full.png";
 import nextButton from "../assets/ui/next_button.png";
 import replayButtonImg from "../assets/ui/replay_button.png";
 import homeButtonImg from "../assets/ui/home_button.png";
@@ -19,6 +19,11 @@ import { fitWidth, fitHeight, GAME_WIDTH, GAME_HEIGHT , coverScreen} from "../ui
 
 const STAR_DELAY = 400;
 
+// Wider than the 92 the stars were drawn at. A pot is a rounder, busier shape
+// than a star and the butter on top is most of what tells the two apart, so it
+// needs the extra size to still read at a glance.
+const POT_WIDTH = 104;
+
 export default class LevelCompleteScene extends Phaser.Scene{
 
     constructor(){
@@ -30,8 +35,8 @@ export default class LevelCompleteScene extends Phaser.Scene{
         AudioManager.preload(this);
 
         loadImage(this, "happyKrishna", happyKrishna);
-        loadImage(this, "starEmpty", starEmpty);
-        loadImage(this, "starFull", starFull);
+        loadImage(this, "potEmpty", potEmpty);
+        loadImage(this, "potFull", potFull);
         loadImage(this, "nextButton", nextButton);
         loadImage(this, "replayButton", replayButtonImg);
         loadImage(this, "homeButton", homeButtonImg);
@@ -100,8 +105,12 @@ export default class LevelCompleteScene extends Phaser.Scene{
         });
 
         //---------------------------------
-        // Stars
+        // The score, in pots
         //---------------------------------
+        //
+        // Three pots rather than three stars: what the run is scored on is how
+        // much butter was got away with, so an empty pot for one not earned
+        // and a full one for one that was says it in the game's own terms.
 
         const panelY = 770;
 
@@ -110,28 +119,32 @@ export default class LevelCompleteScene extends Phaser.Scene{
             460
         );
 
-        // Sit above the small stars painted into the panel art
-        const starY = panelY - 30;
+        // Sit ON the small stars painted into the panel art, not above them.
+        // The panel was drawn back when the score was in stars, and leaving
+        // them showing under a row of pots reads as a half-finished change.
+        const potY = panelY + 4;
 
         for(let i=0;i<3;i++){
 
             const x = GAME_WIDTH/2 - 120 + i * 120;
 
+            // Dulled and knocked back, so an unearned pot reads as an empty
+            // slot rather than as another piece of pottery on the shelf.
             fitWidth(
-                this.add.image(x, starY, "starEmpty"),
-                92
-            ).setTint(0xb9b0a2).setAlpha(0.95);
+                this.add.image(x, potY, "potEmpty"),
+                POT_WIDTH
+            ).setTint(0x9b8f7e).setAlpha(0.9);
 
             if(i < data.stars){
 
-                const star = fitWidth(
-                    this.add.image(x, starY, "starFull"),
-                    92
+                const pot = fitWidth(
+                    this.add.image(x, potY, "potFull"),
+                    POT_WIDTH
                 );
 
-                const full = star.scale;
+                const full = pot.scale;
 
-                star.setScale(0);
+                pot.setScale(0);
 
                 this.time.delayedCall(i * STAR_DELAY, ()=>{
 
@@ -139,7 +152,7 @@ export default class LevelCompleteScene extends Phaser.Scene{
 
                     this.tweens.add({
 
-                        targets: star,
+                        targets: pot,
 
                         scale: full,
 
@@ -150,7 +163,7 @@ export default class LevelCompleteScene extends Phaser.Scene{
                         onComplete: ()=>{
 
                             this.tweens.add({
-                                targets: star,
+                                targets: pot,
                                 angle: 10,
                                 duration: 100,
                                 yoyo: true,

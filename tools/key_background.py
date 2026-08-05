@@ -76,6 +76,13 @@ PATTERN_BAND = 14
 # pixel to judge it, so the rim of any pool always reads as unpatterned.
 BOARD_SHARE = 0.5
 
+# The saturation ceiling used inside a named --erase box. Higher than the one
+# the connectivity mask uses, because in a hand-checked box the neighbours are
+# known: the chequer cells there have been washed by the glow to 0.38, while
+# the nearest thing that must survive is Mother's forearm at 0.43, and her
+# bangles are 0.73 and up.
+ERASE_SATURATION = 0.40
+
 # There is no third rule for the last few flecks of flat backdrop caught in a
 # pocket of the art - behind a raised hand, under a wrist - and the attempt is
 # recorded here so it is not made again.
@@ -218,6 +225,88 @@ def pale_mask(im, floor):
     a = np.asarray(im.convert("RGB")).astype(np.int16)
 
     return bytearray((a.min(axis=2) >= floor).reshape(-1).astype(np.uint8))
+
+
+def backdrop_plane(im, floor, max_sat=0.35):
+    """
+    Pixels that could be the plane the art was mounted on - the chequerboard
+    and the glow over it, however far the glow has washed the cells.
+
+    This exists only to decide what is CONNECTED to what when looking for
+    sealed pools. What a pool actually is still gets decided by the pattern
+    test, which is the part that has been measured against the art.
+
+    It sits between the other two masks on purpose:
+
+      checker_candidates  too tight - it wants neutral, and the glow tints the
+                          cells behind the figures to a spread of 59, so a
+                          pool comes apart into fragments too small to judge
+      pale_mask           too loose - it passes anything pale, and the figures
+                          are full of pale, so the pool joins to Krishna's
+                          skin and Mother's face and stops being a pool
+
+    The saturation ceiling drops Mother's face (0.57) and the blue test drops
+    Krishna, whose skin is the one pale thing in the picture that is cooler
+    than it is warm. Butter and pale highlights do get through, and that is
+    harmless: they form their own pools, and a pool of butter has no
+    chequerboard in it, so the pattern test leaves it alone.
+    """
+
+    import numpy as np
+
+    a = np.asarray(im.convert("RGB")).astype(np.int16)
+    r, b = a[..., 0], a[..., 2]
+
+    hi = a.max(axis=2)
+    lo = a.min(axis=2)
+    sat = (hi - lo) / np.maximum(hi, 1)
+
+    plane = (lo >= floor) & (sat <= max_sat) & (r >= b)
+
+    return bytearray(plane.reshape(-1).astype(np.uint8))
+
+
+def erase_boxes(im, kept, w, h, boxes, floor):
+    """
+    Clear backdrop out of named rectangles, for pockets nothing can reach.
+
+    The last of the chequerboard in KrishnaCaught.png sits in the gap between
+    Krishna's side and Mother's forearm, sealed on all four sides by the two
+    of them. Every automatic route to it has been tried and each fails for a
+    different reason, so this is deliberate and not laziness:
+
+      the fill      cannot get in - the pocket has no path to the border
+      --islands     cannot judge it - the pattern test needs a window wider
+                    than a checker cell, and every window there is mostly arm,
+                    so a pool of plain chequerboard reads as 0% chequerboard
+      a lower --halo  does not reach it either, because it is sealed, and the
+                    cells are 147 on the darkest channel, which is below
+                    Krishna's own skin at 140
+
+    So the region is named by hand. It is still not a blanket erase: only
+    pixels that pass the backdrop test inside the box are taken, which is what
+    keeps her forearm (saturation 0.43) and his blue skin out of it.
+    """
+
+    # Looser than the connectivity mask uses, because inside a named box the
+    # only things to tell apart are known. The glow washes these cells to a
+    # saturation of 0.38, and what must survive in the same box is Mother's
+    # forearm at 0.43 and her bangles at 0.73 and above.
+    plane = backdrop_plane(im, floor, ERASE_SATURATION)
+
+    out = bytearray(kept)
+    cleared = 0
+
+    for x0, y0, x1, y1 in boxes:
+        for y in range(max(0, y0), min(h, y1)):
+            base = y * w
+            for x in range(max(0, x0), min(w, x1)):
+                i = base + x
+                if out[i] and plane[i]:
+                    out[i] = 0
+                    cleared += 1
+
+    return out, cleared
 
 
 def board_pattern(im, bands, window=31, share=0.18):
@@ -615,11 +704,20 @@ def drop_islands(kept, backdroplike, board, w, h, min_area, sealed):
     safety property - pearls and butter are neutral and pale too, but they are
     small, and a lake is several thousand pixels.
 
-    `backdroplike` must be the GROWN classification, the same one the fill
-    spread through. Raw, each checker cell is walled off from its neighbours
-    by the one-pixel blend between them, so a single lake would come apart
-    into hundreds of separate cell-sized blobs and every one of them would sit
-    under the floor.
+    `backdroplike` must be the GROWN chequerboard classification, and NOT
+    whatever wider mask the fill was allowed to spread through. Two separate
+    reasons, both learned the hard way:
+
+    Grown, because raw each checker cell is walled off from its neighbours by
+    the one-pixel blend between them, so a single pool comes apart into
+    hundreds of cell-sized blobs that all sit under the floor.
+
+    Chequerboard-only, because --halo widens the fill to anything pale, and
+    the figures are full of pale: Krishna's light blue skin, Mother's face.
+    Spreading an island search through that mask joins the sealed pocket
+    between the two of them to both figures, so it stops being an island at
+    all - the pocket survived every rule here while the same merged blob was
+    big enough that a size rule punched his face out instead.
 
     Two rules, because one is not enough. Measured over this tableau, the
     sealed pools and the pale art overlap on size alone:
@@ -757,7 +855,7 @@ def fill_holes(kept, w, h, max_area):
 
 
 def key(path, tolerance=DEFAULT_TOLERANCE, checker=False, edges=False,
-        close=0, largest=False, islands=None, halo=0):
+        close=0, largest=False, islands=None, halo=0, erase=()):
 
     im = Image.open(path).convert("RGB")
     w, h = im.size
@@ -788,15 +886,24 @@ def key(path, tolerance=DEFAULT_TOLERANCE, checker=False, edges=False,
         # walled off from each other and the fill never leaves the border.
         # Growing it by one bridges the seams - and takes the matching fringe
         # off the outline of the art, which no colour test would have caught.
-        allowed = grow(checker_candidates(im, bands), w, h)
+        # Two classifications, deliberately different strengths.
+        #
+        # `strict` is the chequerboard itself: neutral, and inside the two
+        # bands. `allowed` adds the painted glow, which is warm and which the
+        # fill has to be able to cross or it never gets inside the picture.
+        #
+        # They must not be the same array. The glow test passes anything pale,
+        # and Krishna's light blue skin and Mother's face are pale, so the
+        # permissive mask joins the backdrop to both figures into one region -
+        # which is exactly what an island search must not spread through.
+        strict = grow(checker_candidates(im, bands), w, h)
 
-        # A glow painted round the art is not neutral and so is none of it
-        # classified above, which leaves it ringing the picture as a wall the
-        # fill cannot cross. Judging on the darkest channel gets through it.
+        allowed = strict
+
         if halo:
             pale = pale_mask(im, halo)
             allowed = bytearray(
-                1 if allowed[i] or pale[i] else 0 for i in range(w * h)
+                1 if strict[i] or pale[i] else 0 for i in range(w * h)
             )
 
         mask = background_mask(im, tolerance, allowed)
@@ -811,9 +918,23 @@ def key(path, tolerance=DEFAULT_TOLERANCE, checker=False, edges=False,
 
         sealed = []
 
-        kept, sank = drop_islands(
-            kept, allowed, board_pattern(im, bands), w, h, islands, sealed
+        plane = backdrop_plane(im, halo or OPAQUE)
+
+        joined = bytearray(
+            1 if strict[i] or plane[i] else 0 for i in range(w * h)
         )
+
+        kept, sank = drop_islands(
+            kept, joined, board_pattern(im, bands), w, h, islands, sealed
+        )
+
+        if erase:
+
+            kept, cleared = erase_boxes(im, kept, w, h, erase,
+                                        (halo or OPAQUE) - 10)
+
+            print(f"  {Path(path).name}: cleared {cleared}px from "
+                  f"{len(erase)} named pocket(s)", flush=True)
 
         if sealed:
 
@@ -915,6 +1036,12 @@ def main():
         halo = int(args[i + 1])
         del args[i:i + 2]
 
+    erase = []
+    while "--erase" in args:
+        i = args.index("--erase")
+        erase.append(tuple(int(v) for v in args[i + 1].split(",")))
+        del args[i:i + 2]
+
     close = 0
     if "--close" in args:
         i = args.index("--close")
@@ -938,7 +1065,7 @@ def main():
             shutil.copy2(ORIGINALS / path.name, path)
 
         out, pct, bands = key(path, tolerance, checker, edges, close, largest,
-                              islands, halo)
+                              islands, halo, erase)
 
         # Keying is destructive and the tolerance usually needs a second try,
         # so park the delivered file outside src/ where it neither ships nor
