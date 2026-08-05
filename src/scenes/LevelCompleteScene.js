@@ -24,6 +24,20 @@ const STAR_DELAY = 400;
 // needs the extra size to still read at a glance.
 const POT_WIDTH = 104;
 
+// Room for three of those plus the gaps between them and the panel's own
+// carved border. A star is mostly empty space around its points and sat
+// happily on a 460 panel; a pot is solid to its edges and was overhanging.
+const POT_GAP = 126;
+const PANEL_WIDTH = 560;
+
+// The shine. Phaser's own Shine effect is WebGL-only and the game falls back
+// to Canvas on some devices, so this is done with a second copy of the pot
+// drawn in ADD blend mode over the first, breathing in and out. Additive
+// blending is supported by both renderers, and because the copy is the same
+// picture it can only brighten what is already there - no highlight can land
+// off the pot or across its outline.
+const GLAZE_MS = 1500;
+
 export default class LevelCompleteScene extends Phaser.Scene{
 
     constructor(){
@@ -108,6 +122,8 @@ export default class LevelCompleteScene extends Phaser.Scene{
         // The score, in pots
         //---------------------------------
         //
+        // See glaze() below for how the pots are made to catch the light.
+        //
         // Three pots rather than three stars: what the run is scored on is how
         // much butter was got away with, so an empty pot for one not earned
         // and a full one for one that was says it in the game's own terms.
@@ -116,24 +132,30 @@ export default class LevelCompleteScene extends Phaser.Scene{
 
         fitWidth(
             this.add.image(GAME_WIDTH/2, panelY, "starPanel"),
-            460
+            PANEL_WIDTH
         );
 
-        // Sit ON the small stars painted into the panel art, not above them.
-        // The panel was drawn back when the score was in stars, and leaving
-        // them showing under a row of pots reads as a half-finished change.
-        const potY = panelY + 4;
+        // Centred on the wooden field, which sits a little above the middle of
+        // the art because the frame hangs lower than it rises.
+        //
+        // Not centred on the three stars carved into the bottom border, which
+        // was tried: those are ornament, cut into the frame the same way the
+        // gems and the peacock feathers are, and covering them only dragged
+        // the pots down out of the field and over the edge.
+        const potY = panelY - 12;
 
         for(let i=0;i<3;i++){
 
-            const x = GAME_WIDTH/2 - 120 + i * 120;
+            const x = GAME_WIDTH/2 - POT_GAP + i * POT_GAP;
 
             // Dulled and knocked back, so an unearned pot reads as an empty
             // slot rather than as another piece of pottery on the shelf.
-            fitWidth(
+            const empty = fitWidth(
                 this.add.image(x, potY, "potEmpty"),
                 POT_WIDTH
             ).setTint(0x9b8f7e).setAlpha(0.9);
+
+            this.glaze(empty, "potEmpty", 0.18);
 
             if(i < data.stars){
 
@@ -162,8 +184,17 @@ export default class LevelCompleteScene extends Phaser.Scene{
 
                         onComplete: ()=>{
 
+                            // Only now, once the pot is at its full size.
+                            // Glazing it up front left a bright ghost of the
+                            // pot sitting on the panel before the pot itself
+                            // had been awarded.
+                            const shine = this.glaze(pot, "potFull", 0.34);
+
+                            // The shine is a separate object lying on top, so
+                            // it has to be rocked with the pot or it slides
+                            // off it for the length of the wobble.
                             this.tweens.add({
-                                targets: pot,
+                                targets: [pot, shine],
                                 angle: 10,
                                 duration: 100,
                                 yoyo: true,
@@ -323,6 +354,52 @@ export default class LevelCompleteScene extends Phaser.Scene{
             this.scene.start("HomeScene");
 
         });
+
+    }
+
+    //------------------------------------------------
+
+    /**
+     * Makes a pot catch the light, by laying a second copy of it over the
+     * first in ADD blend mode and breathing that copy in and out.
+     *
+     * Additive rather than a drawn highlight because the copy is the same
+     * picture: it can only brighten pixels the pot already has, so the shine
+     * cannot spill past the rim or sit on the wrong part of the shape, and it
+     * needs no mask. Both renderers support ADD, which Phaser's own Shine
+     * effect does not - that one is WebGL only, and the game falls back to
+     * Canvas on some devices.
+     *
+     * @param pot    the pot already placed and sized
+     * @param key    its texture, so the copy matches exactly
+     * @param peak   how bright the shine gets - the full pot is given more
+     *               than the empty one, since it is the one worth looking at
+     */
+    glaze(pot, key, peak){
+
+        const shine = this.add.image(pot.x, pot.y, key)
+            .setScale(pot.scale)
+            .setBlendMode(Phaser.BlendModes.ADD)
+            .setAlpha(0);
+
+        // The empty pots are dulled, and a shine that ignored that would make
+        // an unearned slot the brightest thing on the panel.
+        if(pot.tintTopLeft !== 0xffffff){
+
+            shine.setTint(pot.tintTopLeft);
+
+        }
+
+        this.tweens.add({
+            targets: shine,
+            alpha: peak,
+            duration: GLAZE_MS,
+            yoyo: true,
+            repeat: -1,
+            ease: "Sine.easeInOut"
+        });
+
+        return shine;
 
     }
 

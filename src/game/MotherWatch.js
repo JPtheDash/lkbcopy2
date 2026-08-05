@@ -47,6 +47,17 @@ const ARRIVE_MS = 420;
 const WALK_LEAD_MS = 400;
 const WALK_TAIL_MS = 800;
 
+// The stride. There is one drawing of her walking, not a sheet, so the walk
+// has to come from how the drawing is moved rather than from frames.
+//
+// A body rises and falls once per step, and rocks towards whichever foot is
+// down. Both are small on purpose: at this size the shapes read from across
+// the room, and anything bigger stops looking like walking and starts looking
+// like limping. STEP_MS is one half-step, so a full cycle is two of them.
+const STEP_MS = 260;
+const STEP_RISE = 9;
+const STEP_ROCK = 1.8;
+
 // Gap after she leaves before the next warning can be scheduled
 const SETTLE_MS = 900;
 
@@ -269,8 +280,68 @@ export default class MotherWatch {
             x: GAME_WIDTH + half,
             duration: WALK_LEAD_MS + this.watch + WALK_TAIL_MS,
             ease: "Linear",
-            onComplete: ()=> this.figure.setAlpha(0)
+            onComplete: ()=>{
+
+                this.figure.setAlpha(0);
+                this.stopStride();
+
+            }
         });
+
+        this.startStride();
+
+    }
+
+    //------------------------------------------------
+
+    /**
+     * The walk itself: a rise and fall, and a rock from foot to foot.
+     *
+     * Separate tweens from the one carrying her across, so that the crossing
+     * stays perfectly linear underneath - a walk is a steady journey with a
+     * body bobbing on top of it, not a journey that speeds up and slows down.
+     * Sine easing because a stride has no corners in it.
+     */
+    startStride(){
+
+        this.stopStride();
+
+        const floor = GAME_HEIGHT;
+
+        this.figure.setY(floor).setAngle(0);
+
+        this.stride = [
+
+            this.scene.tweens.add({
+                targets: this.figure,
+                y: floor - STEP_RISE,
+                duration: STEP_MS,
+                yoyo: true,
+                repeat: -1,
+                ease: "Sine.easeInOut"
+            }),
+
+            // Twice the period of the rise: she rocks once per full stride,
+            // not once per step, or she wobbles like a metronome.
+            this.scene.tweens.add({
+                targets: this.figure,
+                angle: { from: -STEP_ROCK, to: STEP_ROCK },
+                duration: STEP_MS * 2,
+                yoyo: true,
+                repeat: -1,
+                ease: "Sine.easeInOut"
+            })
+
+        ];
+
+    }
+
+    //------------------------------------------------
+
+    stopStride(){
+
+        this.stride?.forEach(t => t.remove());
+        this.stride = null;
 
     }
 
@@ -315,6 +386,12 @@ export default class MotherWatch {
 
         // Stops her mid-stride, wherever across the room she had got to
         this.scene.tweens.killTweensOf(this.figure);
+
+        // Both feet down and upright. Without this she freezes at whatever
+        // point of the stride she happened to be at - mid-bob and tilted -
+        // and glares from there, which reads as a dropped frame.
+        this.stopStride();
+        this.figure.setY(GAME_HEIGHT).setAngle(0);
 
         // The scene has a tableau with both of them in it, so she is dropped
         // rather than left standing next to a picture of herself. The gloom
@@ -478,6 +555,7 @@ export default class MotherWatch {
 
         this.timers.forEach(t => t.remove(false));
         this.timers = [];
+        this.stopStride();
         this.state = "done";
 
     }

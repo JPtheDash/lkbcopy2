@@ -131,6 +131,21 @@ SCENES = {
     "KrishnaCaught.png": (0, 150, [(692, 250, 812, 508)]),
 }
 
+# Art delivered with a soft glow painted round it on top of the chequerboard,
+# but which is otherwise a single object.
+#
+# The glow is warm, so no colour test calls it backdrop, and because it is
+# joined to the art --largest keeps it rather than dropping it: the filled pot
+# came out inside a ragged oval of cream and chequerboard. The value is the
+# floor on the darkest channel that the fill may cross.
+#
+# 150 clears the glow and leaves the butter, which survives on being enclosed
+# by the rim rather than on being dark. Anything higher starts leaving cells
+# of chequerboard round the top - at 175 they are plainly visible.
+GLOW = {
+    "filledpot.jpg": 150,
+}
+
 # Low enough that the fill stops at the art, high enough to cross the
 # backdrop's own noise. Measured at 0.6 levels between neighbours on the
 # white plates, so anything from 4 to 8 gives the same result.
@@ -208,6 +223,9 @@ def key():
 
         if name in SINGLE_SUBJECT:
             flags += ("--largest",)
+
+        if name in GLOW:
+            flags += ("--halo", str(GLOW[name]))
 
         if name in SCENES:
             pools, glow, pockets = SCENES[name]
