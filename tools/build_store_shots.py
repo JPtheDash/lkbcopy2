@@ -27,11 +27,12 @@ SIZE = (1080, 1920)
 # leads because it is the one a shopper sees as the thumbnail.
 WANTED = [
     ("1-home.png", "01-title"),
-    ("3-game-level1.png", "02-climbing"),
-    ("4-game-level5.png", "03-later-level"),
-    ("4b-game-top.png", "04-the-prize"),
-    ("5-level-complete.png", "05-stars"),
-    ("2-level-select.png", "06-levels"),
+    ("4-game-level1.png", "02-climbing"),
+    ("5-game-level5.png", "03-later-level"),
+    ("5b-game-top.png", "04-the-prize"),
+    ("6-level-complete.png", "05-stars"),
+    ("2-worlds.png", "06-worlds"),
+    ("3-level-select.png", "07-levels"),
 ]
 
 

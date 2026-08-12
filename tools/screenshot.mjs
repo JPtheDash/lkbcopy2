@@ -91,14 +91,23 @@ async function shot(name, extra) {
 await page.waitForTimeout(1500);
 await shot("1-home");
 
-await startScene("LevelSelectScene");
-await shot("2-level-select");
+// The world screen is what "Play" now opens onto, so a listing that skips it
+// shows a menu players never see first.
+await startScene("WorldSelectScene");
+await shot("2-worlds");
+
+// Named with its world. Without one it falls back to the furthest world
+// reached, which on a fresh save is Vrindavan - fine, but then the shot
+// silently changes meaning the first time this is run against a save that
+// has progress in it.
+await startScene("LevelSelectScene", { world: 1 });
+await shot("3-level-select");
 
 await startScene("GameScene", { level: 1 });
-await shot("3-game-level1");
+await shot("4-game-level1");
 
 await startScene("GameScene", { level: 5 });
-await shot("4-game-level5");
+await shot("5-game-level5");
 
 // Levels are two screens tall, so check the framing high up as well
 await startScene("GameScene", { level: 1 });
@@ -108,11 +117,11 @@ await page.evaluate(() => {
     s.krishna.body.setVelocity(0, 0);
 });
 await page.waitForTimeout(1400);
-await shot("4b-game-top");
+await shot("5b-game-top");
 
 await startScene("LevelCompleteScene", { level: 2, stars: 3, timeLeft: 40 });
 await page.waitForTimeout(1600);
-await shot("5-level-complete");
+await shot("6-level-complete");
 
 // Settings panel, opened through the real button
 const openSettings = async () => {
@@ -124,7 +133,7 @@ const openSettings = async () => {
 
 await startScene("HomeScene");
 await openSettings();
-await shot("6-settings", openSettings);
+await shot("7-settings", openSettings);
 
 await browser.close();
 

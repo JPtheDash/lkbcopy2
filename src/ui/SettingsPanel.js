@@ -4,6 +4,21 @@ import { fitWidth, GAME_WIDTH, GAME_HEIGHT } from "./layout";
 import SaveManager from "../managers/SaveManager";
 import AudioManager from "../managers/AudioManager";
 
+// The panel's width on screen. Everything else here is a fraction of the art
+// rather than a pixel count, so a re-export at a different size still lands.
+const PANEL_WIDTH = 560;
+
+// Where the carved ribbon sits in settings_panel.png, as a fraction of the
+// art's height. The ribbon runs from y=101 to y=195 of the 1296-tall texture,
+// so its centre is 11.4% down - NOT the 24% that a hand-picked -310 worked
+// out to, which hung the word low enough that the g's descender dropped
+// through the ribbon's bottom edge onto the wood.
+const TITLE_BAND = 0.1142;
+
+// The ribbon's flat writing area, as a fraction of the panel's width. The
+// scrolled ends curl inward and are not writing surface.
+const TITLE_ROOM = 0.52;
+
 export default class SettingsPanel {
 
     constructor(scene) {
@@ -51,23 +66,39 @@ export default class SettingsPanel {
             "settingsPanel"
         );
 
-        fitWidth(this.panel, 560);
+        fitWidth(this.panel, PANEL_WIDTH);
 
         this.container.add(this.panel);
 
         // =========================
         // Title
         // =========================
+        // Arial, like every other piece of text in the game. Without a
+        // fontFamily the browser picks, and on this WebView it picked a
+        // monospace face - so the one word naming the panel was the only
+        // thing in the whole app not set in the game's own typeface.
         this.title = scene.add.text(
             0,
-            -310,
+            -this.panel.displayHeight/2 + this.panel.displayHeight * TITLE_BAND,
             "Settings",
             {
-                fontSize: "44px",
+                fontFamily: "Arial",
+                fontSize: "40px",
                 fontStyle: "bold",
                 color: "#5A2D0C"
             }
         ).setOrigin(0.5);
+
+        // Shrunk to the ribbon if it ever outgrows it, the same way the level
+        // and world headings are. This word does not need it in English; a
+        // translation of it will.
+        const titleRoom = this.panel.displayWidth * TITLE_ROOM;
+
+        if(this.title.width > titleRoom){
+
+            this.title.setScale(titleRoom / this.title.width);
+
+        }
 
         this.container.add(this.title);
 
@@ -143,6 +174,7 @@ export default class SettingsPanel {
             90,
             "English",
             {
+                fontFamily: "Arial",
                 fontSize: "28px",
                 color: "#1E5AA8",
                 fontStyle: "bold"
@@ -179,6 +211,7 @@ export default class SettingsPanel {
             220,
             ">",
             {
+                fontFamily: "Arial",
                 fontSize: "40px",
                 fontStyle: "bold",
                 color: "#FFE9A8",

@@ -15,6 +15,14 @@ import starPanel from "../assets/ui/star_panel.png";
 import ribbonPerfect from "../assets/ui/ribbon_perfect.png";
 import homeBackground from "../assets/backgrounds/home_background.jpg";
 
+// Only used by the share card, which is drawn on its own canvas rather than
+// on the scene - but the pictures still have to be through Phaser's loader
+// before that canvas can draw them.
+import feather from "../assets/items/feather.png";
+import logo from "../assets/ui/logo.png";
+
+import openVictoryShare from "../ui/VictoryShare";
+
 import { fitWidth, fitHeight, GAME_WIDTH, GAME_HEIGHT , coverScreen} from "../ui/layout";
 
 const STAR_DELAY = 400;
@@ -38,6 +46,11 @@ const PANEL_WIDTH = 560;
 // off the pot or across its outline.
 const GLAZE_MS = 1500;
 
+// The last pot lands at 3 x STAR_DELAY, and the perfect-run ribbon 620ms
+// after that. This waits out both, so the share card arrives as the next
+// thing rather than on top of the reward.
+const WORLD_CELEBRATION_DELAY = 2300;
+
 export default class LevelCompleteScene extends Phaser.Scene{
 
     constructor(){
@@ -58,10 +71,16 @@ export default class LevelCompleteScene extends Phaser.Scene{
         loadImage(this, "starPanel", starPanel);
         loadImage(this, "ribbon", ribbonPerfect);
         loadImage(this, "homeBackground", homeBackground);
+        loadImage(this, "feather", feather);
+        loadImage(this, "logo", logo);
 
     }
 
     create(data){
+
+        // Kept for onBackButton, which runs long after create() has returned
+        // and has no other way to know which world to go back to.
+        this.level = data.level;
 
         // Back out of the climb's music now the level is over
         AudioManager.startMusic(this, "menu");
@@ -76,6 +95,11 @@ export default class LevelCompleteScene extends Phaser.Scene{
         SaveManager.saveStars(data.level, data.stars);
 
         AudioManager.play(this,"win");
+
+        // Whether this result finished a world can only be asked after the
+        // save above has taken it in - `cleared` is counted from the save,
+        // not from what was just handed to this scene.
+        this.maybeCelebrateWorld(data.level);
 
         //---------------------------------
         // Banner
@@ -315,7 +339,20 @@ export default class LevelCompleteScene extends Phaser.Scene{
             // Past the last level there is nothing to advance to
             if(nextLevel > LevelManager.getCount()){
 
-                this.scene.start("LevelSelectScene");
+                this.scene.start("WorldSelectScene");
+
+                return;
+
+            }
+
+            // Crossing into a new world goes to the world screen rather than
+            // straight into the next level. Clearing level 10 is what opens
+            // Yamuna, and dropping the player into level 11 means the only
+            // sign of it is that the background changed - the thing they just
+            // earned goes past unseen.
+            if(LevelManager.worldOf(nextLevel) !== LevelManager.worldOf(data.level)){
+
+                this.scene.start("WorldSelectScene");
 
                 return;
 
@@ -352,6 +389,40 @@ export default class LevelCompleteScene extends Phaser.Scene{
             AudioManager.play(this,"click");
 
             this.scene.start("HomeScene");
+
+        });
+
+    }
+
+    //------------------------------------------------
+
+    /**
+     * Offers the share card, if this result was the one that finished a world.
+     *
+     * Finishing the LAST level of a world is not the test - levels can be
+     * replayed and taken in any unlocked order, so the tenth level cleared is
+     * often not level ten. What counts is that none of the world's ten are
+     * still unplayed.
+     */
+    maybeCelebrateWorld(levelId){
+
+        const worldId = LevelManager.worldOf(levelId);
+
+        const world = LevelManager.getWorlds().find(w => w.id === worldId);
+
+        if(!world || world.cleared < world.count){ return; }
+
+        // After the pots and the ribbon have landed. Dropping this over the
+        // top of the result would cover the thing the player just earned with
+        // a request to go and tell people about it.
+        this.time.delayedCall(WORLD_CELEBRATION_DELAY, () => {
+
+            openVictoryShare(this, {
+                worldName: world.name,
+                levels: world.count,
+                feathers: world.stars,
+                maxFeathers: world.maxStars
+            });
 
         });
 
@@ -412,7 +483,19 @@ export default class LevelCompleteScene extends Phaser.Scene{
      */
     onBackButton(){
 
-        this.scene.start("LevelSelectScene");
+        // The share card is the frontmost thing while it is up, so back
+        // closes that instead of walking out of the screen underneath it.
+        if(this.__victoryClose){
+
+            this.__victoryClose();
+
+            return;
+
+        }
+
+        this.scene.start("LevelSelectScene", {
+            world: LevelManager.worldOf(this.level)
+        });
 
     }
 

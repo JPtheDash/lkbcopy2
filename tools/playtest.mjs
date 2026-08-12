@@ -109,6 +109,10 @@ async function swipeAndSettle(dx, dy) {
 
 let failed = 0;
 
+// Levels the harness could not walk at all, kept apart from levels it walked
+// and could not finish. Only the second kind is a level design problem.
+let crashed = 0;
+
 // Walks whatever the level table holds rather than a hard-coded 5, so adding
 // a level cannot quietly go untested. The table is only attached once a
 // GameScene has run, so one has to be started before it can be counted.
@@ -182,10 +186,13 @@ for (let level = 1; level <= LEVEL_COUNT; level++) {
 
         const cur = await state();
 
+        // state() has already worked this out, and safely: asking the page
+        // again here read window.__game without a guard, and the one case
+        // that gets you here is the case where the game object is gone. A
+        // renderer that runs out of memory therefore did not report a lost
+        // level, it threw out of the harness and abandoned the whole run.
         if (cur.gone) {
-            complete = await page.evaluate(
-                () => window.__game.scene.isActive("LevelCompleteScene")
-            );
+            complete = cur.complete;
             break;
         }
 
@@ -211,9 +218,7 @@ for (let level = 1; level <= LEVEL_COUNT; level++) {
 
         const now = await state();
         if (now.gone) {
-            complete = await page.evaluate(
-                () => window.__game.scene.isActive("LevelCompleteScene")
-            );
+            complete = now.complete;
             break;
         }
 
@@ -242,6 +247,16 @@ for (let level = 1; level <= LEVEL_COUNT; level++) {
             `level ${level}: COMPLETED  (${steps} platforms, ` +
             `climbed ${climbed}px, ${took.toFixed(1)}s)`
         );
+    } else if (end.crashed) {
+        // The page lost the game object entirely, which is the machine
+        // running out of memory rather than anything about this level.
+        // Counted separately so a tired Codespace cannot be read as a design
+        // fault - the level was never actually walked.
+        crashed++;
+        console.log(
+            `level ${level}: SKIPPED - the page crashed (out of memory), ` +
+            `nothing measured`
+        );
     } else {
         failed++;
         if (!end.gone) await page.screenshot({ path: `${OUT}/stuck-level${level}.png` });
@@ -259,7 +274,14 @@ if (errors.length) {
     [...new Set(errors)].forEach(e => console.error("  " + e));
 }
 
-if (failed || errors.length) {
+if (crashed) {
+    console.error(
+        `\n${crashed} level(s) never walked - the page ran out of memory. ` +
+        `Close what else is running and try again; this is not a result.`
+    );
+}
+
+if (failed || crashed || errors.length) {
     console.error(`\n${failed} level(s) not completable`);
     process.exit(1);
 }

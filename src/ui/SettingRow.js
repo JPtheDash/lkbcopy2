@@ -61,6 +61,11 @@ export default class SettingRow {
 
             {
 
+                // Named, not left to the browser. Unset, this row's text came
+                // out in whatever face the WebView defaults to - a monospace
+                // one here - while the buttons around it were Arial.
+                fontFamily: "Arial",
+
                 fontSize: "30px",
 
                 fontStyle: "bold",

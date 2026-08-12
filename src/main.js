@@ -5,6 +5,7 @@ import confirmDialog from "./ui/ConfirmDialog";
 import HomeScene from "./scenes/HomeScene";
 import GameScene from "./scenes/GameScene";
 import LevelCompleteScene from "./scenes/LevelCompleteScene";
+import WorldSelectScene from "./scenes/WorldSelectScene";
 import LevelSelectScene from "./scenes/LevelSelectScene";
 
 // Headless Chromium falls back to software WebGL and crawls at ~8fps, which
@@ -47,6 +48,8 @@ const config = {
     scene: [
 
     HomeScene,
+
+    WorldSelectScene,
 
     LevelSelectScene,
 

@@ -167,6 +167,35 @@ export default class HomeScene extends Phaser.Scene {
             580
         );
 
+        // WHAT MAKES HIM STAND UP
+        //
+        // He was drawn cut out, with no ground under him, and the background
+        // behind his feet is receding meadow - so nothing in the picture said
+        // where he was, and he read as pasted on top of it rather than
+        // standing in it. His feet were already planted correctly; the
+        // missing thing was the shadow they cast.
+        //
+        // Squashed flat and sat just under his heels, the same soft dark
+        // patch the title sign uses. Wider than he is at the ankle but well
+        // inside his shoulders, because a shadow as wide as the whole figure
+        // reads as a pool he is hovering over rather than contact.
+        //
+        // BELOW the feet line, not straddling it. Centred on his feet the
+        // patch ran from 29px above them to 17 below, which put the dark
+        // middle of the gradient behind his legs where it cannot be seen -
+        // only the faint outer edge reached the ground, and the figure went
+        // on looking exactly as unplanted as before.
+        //
+        // Added before him so it lies under his feet rather than across them.
+        this.krishnaShadow = this.add.image(
+            GAME_WIDTH/2, krishnaFeet + 10, "glowPatch"
+        )
+            .setDisplaySize(this.krishna.displayWidth * 0.66, 52)
+            .setAlpha(0.7)
+            .setDepth(this.krishna.depth - 1);
+
+        this.children.moveBelow(this.krishnaShadow, this.krishna);
+
         this.tweens.add({
             targets: this.krishna,
             scaleY: this.krishna.scaleY * 1.018,
@@ -175,6 +204,11 @@ export default class HomeScene extends Phaser.Scene {
             repeat: -1,
             ease: "Sine.easeInOut"
         });
+
+        // The shadow does NOT breathe with him. His feet do not leave the
+        // ground, so the contact patch they make cannot change size - and a
+        // shadow that pulses under a standing figure is the exact thing that
+        // reads as hovering.
 
         // Low enough to clear his feet: at the old fixed 940 its top edge cut
         // across his ankles once he was drawn full height.
@@ -196,7 +230,7 @@ export default class HomeScene extends Phaser.Scene {
 
             AudioManager.play(this,"click");
 
-            this.scene.start("LevelSelectScene");
+            this.scene.start("WorldSelectScene");
 
         });
 
