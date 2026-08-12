@@ -343,7 +343,10 @@ export default class SettingsPanel {
         confirmDialog(this.scene, {
             message:
                 "Little Krishna's\nButter Hunt\n\n" +
-                "Version 1.0\n\n" +
+                // Baked in by Vite from the Android project's versionName, so
+                // this cannot fall behind the number Play shows the way a
+                // hand-typed "1.0" did.
+                `Version ${__APP_VERSION__}\n\n` +
                 "Climb for the butter,\nand hide from Mother.",
             confirmText: "OK",
             cancelText: null,
