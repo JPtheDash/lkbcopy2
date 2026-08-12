@@ -17,7 +17,6 @@ import homeButtonImg from "../assets/ui/home_button.png";
 import happyKrishna from "../assets/ui/krishna_happy_butter.png";
 import logo from "../assets/ui/logo.png";
 
-import openVictoryShare from "../ui/VictoryShare";
 
 import { fitWidth, fitHeight, GAME_WIDTH, GAME_HEIGHT, coverScreen } from "../ui/layout";
 
@@ -310,12 +309,7 @@ export default class WorldSelectScene extends Phaser.Scene {
 
             AudioManager.play(this, "click");
 
-            openVictoryShare(this, {
-                worldName: world.name,
-                levels: world.count,
-                feathers: world.stars,
-                maxFeathers: world.maxStars
-            });
+            this.scene.start("ShareScene", { world: world.id });
 
         });
 

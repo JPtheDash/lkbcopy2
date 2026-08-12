@@ -21,7 +21,6 @@ import homeBackground from "../assets/backgrounds/home_background.jpg";
 import feather from "../assets/items/feather.png";
 import logo from "../assets/ui/logo.png";
 
-import openVictoryShare from "../ui/VictoryShare";
 
 import { fitWidth, fitHeight, GAME_WIDTH, GAME_HEIGHT , coverScreen} from "../ui/layout";
 
@@ -412,17 +411,15 @@ export default class LevelCompleteScene extends Phaser.Scene{
 
         if(!world || world.cleared < world.count){ return; }
 
-        // After the pots and the ribbon have landed. Dropping this over the
-        // top of the result would cover the thing the player just earned with
-        // a request to go and tell people about it.
+        // After the pots and the ribbon have landed, then the game MOVES to
+        // the share page rather than laying it over this screen. Ten levels
+        // is the biggest thing a player has done, and as an overlay it read
+        // as a notice about their result posted on top of it - with this
+        // screen's own NEXT, REPLAY and HOME still live underneath, giving
+        // them five places to go while being asked to do one thing.
         this.time.delayedCall(WORLD_CELEBRATION_DELAY, () => {
 
-            openVictoryShare(this, {
-                worldName: world.name,
-                levels: world.count,
-                feathers: world.stars,
-                maxFeathers: world.maxStars
-            });
+            this.scene.start("ShareScene", { world: world.id });
 
         });
 

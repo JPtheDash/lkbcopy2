@@ -7,6 +7,7 @@ import GameScene from "./scenes/GameScene";
 import LevelCompleteScene from "./scenes/LevelCompleteScene";
 import WorldSelectScene from "./scenes/WorldSelectScene";
 import LevelSelectScene from "./scenes/LevelSelectScene";
+import ShareScene from "./scenes/ShareScene";
 
 // Headless Chromium falls back to software WebGL and crawls at ~8fps, which
 // makes automated play tests useless. ?renderer=canvas lets the tools in
@@ -55,7 +56,9 @@ const config = {
 
     GameScene,
 
-    LevelCompleteScene
+    LevelCompleteScene,
+
+    ShareScene
 
 ]
 };

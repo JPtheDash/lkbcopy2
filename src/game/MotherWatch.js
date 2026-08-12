@@ -68,6 +68,23 @@ const SHADOW_ALPHA = 0.62;
 // a scrolling room.
 const MOTHER_HEIGHT = 470;
 
+// How much of her is left BELOW the bottom edge of the screen.
+//
+// There is one drawing of her, not a walk cycle, and her bare feet are drawn
+// mid-stride - one flat, one lifted. Everything above the hem can be made to
+// look like walking by bobbing it, because that is genuinely what a walking
+// body does. Feet cannot: a foot frozen in one shape while the whole figure
+// slides across the room is the single thing that gives it away, and it made
+// her read as gliding rather than walking.
+//
+// So the screen edge crops them. 122 is a quarter of her height, which takes
+// the feet, the ankles and the bottom of the sari, and leaves her cut off by
+// the floor the way a figure walking close to the camera would be.
+const SINK = 122;
+
+// Where her feet would be if you could see them.
+const STANDS_AT = () => GAME_HEIGHT + SINK;
+
 // She stops dead where she caught sight of him, which on a crossing can be
 // right at an edge with half of her off the screen. This is how far in she is
 // brought to glare, as a fraction of the width - the angry drawing is the
@@ -125,7 +142,7 @@ export default class MotherWatch {
             // from. arrive() places her properly; this only has to be
             // somewhere she cannot be seen sitting before her first visit.
             this.figure = this.scene.add
-                .image(-GAME_WIDTH, GAME_HEIGHT, "motherWalking")
+                .image(-GAME_WIDTH, STANDS_AT(), "motherWalking")
                 .setOrigin(0.5, 1)
                 .setAlpha(0);
 
@@ -270,7 +287,7 @@ export default class MotherWatch {
         this.figure
             .setAngle(0)
             .setAlpha(1)
-            .setY(GAME_HEIGHT)
+            .setY(STANDS_AT())
             .setX(-half);
 
         // Linear. An eased tween drifts to a halt in the middle of the floor,
@@ -306,7 +323,7 @@ export default class MotherWatch {
 
         this.stopStride();
 
-        const floor = GAME_HEIGHT;
+        const floor = STANDS_AT();
 
         this.figure.setY(floor).setAngle(0);
 
@@ -391,7 +408,7 @@ export default class MotherWatch {
         // point of the stride she happened to be at - mid-bob and tilted -
         // and glares from there, which reads as a dropped frame.
         this.stopStride();
-        this.figure.setY(GAME_HEIGHT).setAngle(0);
+        this.figure.setY(STANDS_AT()).setAngle(0);
 
         // The scene has a tableau with both of them in it, so she is dropped
         // rather than left standing next to a picture of herself. The gloom
