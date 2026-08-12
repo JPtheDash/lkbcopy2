@@ -66,16 +66,37 @@ export default class LevelManager {
     /**
      * The worlds, with how far the player has got in each.
      *
-     * A world is unlocked when its first level is. That needs nothing new in
-     * the save: levels already unlock one at a time, so finishing level 10
-     * unlocks level 11, which is world 2's first - and anyone part-way
-     * through an older save lands in the right place with no migration.
+     * A world opens only when the world before it has been cleared in full -
+     * all ten levels finished, not merely reached.
+     *
+     * That was already true before this said so, but only as a side effect:
+     * levels unlock one at a time, so the id of a later world's first level
+     * could not come up until every level before it had been beaten, and the
+     * rule was read off `levels[0].unlocked`. Anything that ever advanced
+     * `unlockedLevel` by more than one - a skip after repeated failures, a
+     * jump straight to a world, a reordered table - would have opened a world
+     * on an unfinished one, silently and with nothing to catch it. Stating
+     * the rule where it is enforced costs a few lines and cannot drift.
+     *
+     * `cleared` is levels with at least one feather, and a win is never worth
+     * less than one (see StarReward), so "cleared" and "finished" are the
+     * same set. Old saves need no migration for the same reason.
      */
     static getWorlds() {
+
+        // Carried forward rather than looked up, so each world is judged on
+        // the one before it in a single pass.
+        let previousDone = true;
 
         return Worlds.map(world => {
 
             const levels = this.getLevelsInWorld(world.id);
+
+            const cleared = levels.filter(l => l.stars > 0).length;
+
+            const unlocked = previousDone && levels.length > 0;
+
+            previousDone = cleared >= levels.length;
 
             return {
 
@@ -83,11 +104,11 @@ export default class LevelManager {
 
                 count: levels.length,
 
-                unlocked: levels.length > 0 && levels[0].unlocked,
+                unlocked,
 
                 // Both go on the card: cleared says how far through you are,
                 // stars says how well it went.
-                cleared: levels.filter(l => l.stars > 0).length,
+                cleared,
 
                 stars: levels.reduce((sum, l) => sum + l.stars, 0),
 

@@ -134,11 +134,33 @@ const LEVEL_COUNT = await page.evaluate(
     () => window.__game.scene.getScene("GameScene").__allLevels.length
 );
 
-console.log(`walking ${LEVEL_COUNT} levels\n`);
+// LEVELS=16 or LEVELS=16-18 walks part of the table.
+//
+// A full run takes about ten minutes and boots thirty browsers, and this
+// machine is short enough of memory that one of them occasionally dies
+// mid-level - which is not a result, and which used to mean re-walking all
+// thirty to re-test the one that was lost.
+const [FIRST, LAST] = (() => {
 
-for (let level = 1; level <= LEVEL_COUNT; level++) {
+    const pick = process.env.LEVELS;
 
-    if (level > 1) await freshPage();
+    if (!pick) return [1, LEVEL_COUNT];
+
+    const [a, b = a] = pick.split("-").map(Number);
+
+    return [Math.max(1, a), Math.min(LEVEL_COUNT, b)];
+
+})();
+
+console.log(
+    FIRST === 1 && LAST === LEVEL_COUNT
+        ? `walking ${LEVEL_COUNT} levels\n`
+        : `walking levels ${FIRST}-${LAST} of ${LEVEL_COUNT}\n`
+);
+
+for (let level = FIRST; level <= LAST; level++) {
+
+    if (level > FIRST) await freshPage();
 
     await bootGame();
 
