@@ -214,10 +214,6 @@ function climb({
 
         const x = xAt(i);
 
-        // Which way he was travelling when he arrived, so the pot goes behind
-        // him rather than under his feet
-        const travel = Math.sign(x - xAt(i - 1)) || 1;
-
         platforms.push({
             x,
             y: BOTTOM - i * gap,
@@ -253,9 +249,15 @@ function climb({
             // its ledge two jumps from anywhere safe, which a warning does
             // not allow time for; as extra pots they cost nothing but the
             // decision, which is the point of them.
+            // Which END of the plank the pot stands at is NOT set here. It
+            // used to be, as -travel - the end he did not arrive from - and
+            // that read as varied while being nothing of the kind: cover is
+            // on every second rung, the ladder zig-zags, so every rung
+            // carrying a pot is arrived at from the same direction and every
+            // pot in the game stood at the same end. createHideSpot() in
+            // GameScene picks it per attempt instead.
             ...(i % hideEvery === 0 || fakes.includes(i) ? {
                 hide: {
-                    side: -travel,
                     real: !fakes.includes(i)
                 }
             } : {})

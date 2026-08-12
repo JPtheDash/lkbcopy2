@@ -768,7 +768,23 @@ export default class GameScene extends Phaser.Scene {
             Math.max(HIDE_NEAR, reach)
         );
 
-        pot.setX(plank.x + spec.side * offset);
+        // WHICH END IS PICKED HERE, NOT BY THE LEVEL
+        //
+        // The level used to name the side, as the end Krishna did not arrive
+        // from - which sounds random and is not. Real cover sits on every
+        // second rung, the ladder zig-zags, so every second rung is arrived
+        // at from the same direction: the side worked out to the same value
+        // on every pot of every level, and they all stood at the left end of
+        // their plank for the whole game.
+        //
+        // Picked per pot per attempt instead, so a replay of the same level
+        // is not the same room. The scramble survives it: HIDE_NEAR keeps the
+        // pot clear of the spot he lands on by more than HIDE_TOLERANCE, so
+        // he has to go to it whichever end it is at - some of the time now
+        // forwards rather than back.
+        const side = Phaser.Math.RND.sign();
+
+        pot.setX(plank.x + side * offset);
 
         // Standing on the plank, not floating over it
         pot.setY(plank.y - plank.displayHeight/2 - pot.displayHeight/2 + 12);

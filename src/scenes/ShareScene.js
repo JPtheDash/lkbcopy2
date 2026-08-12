@@ -120,11 +120,9 @@ export default class ShareScene extends Phaser.Scene {
         // strand the buttons halfway up it.
 
         const navY = GAME_HEIGHT - 62;
-        const rowTwoY = GAME_HEIGHT - 148;
-        const rowOneY = GAME_HEIGHT - 226;
-        const rowLabelY = GAME_HEIGHT - 274;
-        const shareY = GAME_HEIGHT - 344;
-        const messageY = GAME_HEIGHT - 426;
+        const statusY = GAME_HEIGHT - 130;
+        const shareY = GAME_HEIGHT - 196;
+        const messageY = GAME_HEIGHT - 288;
 
         //---------------------------------
         // The card
@@ -152,41 +150,24 @@ export default class ShareScene extends Phaser.Scene {
         );
 
         //---------------------------------
-        // The picture, through the system's own sheet
+        // Share
         //---------------------------------
+        //
+        // One button. The six apps used to sit on this page in two rows,
+        // which made choosing where to send it the loudest thing on a screen
+        // whose subject is the card - and asked the player to pick an app
+        // before they had decided to share at all. They live behind this now.
 
         this.button(
-            cx, shareY, 480, 88, "SHARE THE PICTURE", 0xB96A16,
-            () => this.sharePicture(), "34px"
+            cx, shareY, 480, 92, "SHARE", 0xB96A16,
+            () => this.openChooser(), "36px"
         );
 
-        this.status = this.add.text(cx, rowLabelY, "or send it straight to", {
+        this.status = this.add.text(cx, statusY, "", {
             fontFamily: "Arial",
             fontSize: "22px",
             color: "#C8B79A"
         }).setOrigin(0.5);
-
-        //---------------------------------
-        // The named apps
-        //---------------------------------
-
-        const gap = 16;
-        const width = (GAME_WIDTH - 80 - gap * 2) / 3;
-
-        TARGETS.forEach((target, i) => {
-
-            const row = Math.floor(i / 3);
-            const col = i % 3;
-
-            const x = 40 + width/2 + col * (width + gap);
-            const y = row === 0 ? rowOneY : rowTwoY;
-
-            this.button(
-                x, y, width, 62, target.label, target.colour,
-                () => this.useTarget(target), "24px"
-            );
-
-        });
 
         //---------------------------------
         // Out
@@ -236,6 +217,125 @@ export default class ShareScene extends Phaser.Scene {
         });
 
         return { box, text };
+
+    }
+
+    //------------------------------------------------
+
+    /**
+     * The list of places to send it, opened by the Share button.
+     *
+     * Drawn over this scene rather than made a scene of its own: it is a
+     * choice about the page behind it, and the card has to stay visible while
+     * it is up so the player can see what they are sending.
+     *
+     * Built in a plain array with setDepth rather than a Container, for the
+     * reason ConfirmDialog gives: Phaser hit-tests a container's children
+     * against camera scroll, which breaks buttons inside one.
+     */
+    openChooser(){
+
+        if(this.chooser){ return; }
+
+        const cx = GAME_WIDTH/2;
+        const parts = [];
+        const DEPTH = 800;
+
+        const keep = item => {
+
+            item.setDepth(DEPTH);
+            parts.push(item);
+
+            return item;
+
+        };
+
+        keep(
+            this.add
+                .rectangle(cx, GAME_HEIGHT/2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.8)
+                .setInteractive()
+                .on("pointerdown", () => this.closeChooser())
+        );
+
+        // Measured up from the bottom so the sheet sits under the card rather
+        // than over it - the point of a chooser is not to hide the thing
+        // being chosen for.
+        const closeY = GAME_HEIGHT - 70;
+        const rowTwoY = GAME_HEIGHT - 168;
+        const rowOneY = GAME_HEIGHT - 250;
+        const pictureY = GAME_HEIGHT - 350;
+        const titleY = GAME_HEIGHT - 424;
+
+        // A solid ground under the sheet, not just the dimming. At 0.8 the
+        // page's own ADD YOUR NAME and WORLDS buttons still showed through
+        // from directly behind the app row, so the sheet looked like it was
+        // printed on top of the page rather than laid over it.
+        keep(
+            this.add.rectangle(
+                cx, (titleY - 30 + GAME_HEIGHT)/2,
+                GAME_WIDTH, GAME_HEIGHT - (titleY - 30),
+                0x140901, 0.96
+            ).setInteractive()
+        );
+
+        keep(this.add.text(cx, titleY, "Send it to", {
+            fontFamily: "Arial",
+            fontSize: "30px",
+            fontStyle: "bold",
+            color: "#FFD54A"
+        }).setOrigin(0.5));
+
+        // First, and widest, because it is the only one that carries the
+        // picture - see shareTargets.js for why a link cannot.
+        const picture = this.button(
+            cx, pictureY, 480, 82, "SHARE THE PICTURE", 0x2E7D32,
+            () => { this.closeChooser(); this.sharePicture(); }, "30px"
+        );
+
+        keep(picture.box);
+        keep(picture.text);
+
+        const gap = 16;
+        const width = (GAME_WIDTH - 80 - gap * 2) / 3;
+
+        TARGETS.forEach((target, i) => {
+
+            const row = Math.floor(i / 3);
+            const col = i % 3;
+
+            const made = this.button(
+                40 + width/2 + col * (width + gap),
+                row === 0 ? rowOneY : rowTwoY,
+                width, 66, target.label, target.colour,
+                () => { this.closeChooser(); this.useTarget(target); },
+                "24px"
+            );
+
+            keep(made.box);
+            keep(made.text);
+
+        });
+
+        const close = this.button(
+            cx, closeY, 240, 60, "CLOSE", 0x3A2A18,
+            () => this.closeChooser(), "24px"
+        );
+
+        keep(close.box);
+        keep(close.text);
+
+        this.chooser = parts;
+
+    }
+
+    //------------------------------------------------
+
+    closeChooser(){
+
+        if(!this.chooser){ return; }
+
+        this.chooser.forEach(part => part.destroy());
+        this.chooser = null;
 
     }
 
@@ -363,7 +463,7 @@ export default class ShareScene extends Phaser.Scene {
 
     say(message, bad = false){
 
-        this.status.setText(message || "or send it straight to");
+        this.status.setText(message || "");
         this.status.setColor(bad ? "#FFB4A0" : "#C8B79A");
 
     }
@@ -385,6 +485,16 @@ export default class ShareScene extends Phaser.Scene {
     //------------------------------------------------
 
     onBackButton(){
+
+        // The chooser is the frontmost thing while it is up, so back closes
+        // that rather than walking out of the page underneath it.
+        if(this.chooser){
+
+            this.closeChooser();
+
+            return;
+
+        }
 
         this.leave("WorldSelectScene");
 
