@@ -17,6 +17,9 @@ import { GAME_WIDTH, GAME_HEIGHT } from "./layout";
 
 const DEPTH = 900;
 
+// Wide enough for two side by side inside the 560 panel, with a gap between.
+const BUTTON_WIDTH = 240;
+
 export default function confirmDialog(scene, {
     message = "Are you sure?",
     confirmText = "YES",
@@ -83,7 +86,7 @@ export default function confirmDialog(scene, {
     const button = (x, label, colour, action) => {
 
         const box = scene.add
-            .rectangle(x, buttonY, 220, 92, colour)
+            .rectangle(x, buttonY, BUTTON_WIDTH, 92, colour)
             .setStrokeStyle(4, 0xFFE9A8)
             .setInteractive({ useHandCursor: true });
 
@@ -95,6 +98,19 @@ export default function confirmDialog(scene, {
                 color: "#FFFFFF"
             })
             .setOrigin(0.5);
+
+        // Shrunk to its button if it does not fit. These buttons were sized
+        // for YES and NO; the first one to carry a real sentence - START
+        // AGAIN - ran out over both ends of the box and into the panel. A
+        // translation of YES will do the same, so this is fixed here rather
+        // than by choosing shorter words.
+        const room = BUTTON_WIDTH - 24;
+
+        if(caption.width > room){
+
+            caption.setScale(room / caption.width);
+
+        }
 
         box.on("pointerdown", ()=>{
 
@@ -112,8 +128,8 @@ export default function confirmDialog(scene, {
 
     if(cancelText){
 
-        button(cx - 130, cancelText, 0x7A4A18, onCancel);
-        button(cx + 130, confirmText, 0xA8341A, onConfirm);
+        button(cx - 128, cancelText, 0x7A4A18, onCancel);
+        button(cx + 128, confirmText, 0xA8341A, onConfirm);
 
     }
     else{

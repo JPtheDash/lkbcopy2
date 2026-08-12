@@ -57,6 +57,33 @@ export default class SaveManager{
 
     }
 
+    /**
+     * Back to a brand new game: level 1 open, nothing else, no feathers.
+     *
+     * The whole entry is removed rather than overwritten with defaults, so
+     * load() rebuilds it from one place. Written twice, the defaults here and
+     * the defaults in load() would be free to drift apart, and a reset would
+     * quietly restore whichever of the two was older.
+     *
+     * Sound and music are deliberately NOT part of this. They are how the
+     * player has set the game up, not something they achieved, and wiping
+     * them turns "start again" into a small unpleasant surprise.
+     */
+    static reset(){
+
+        const { sound, music } = this.load();
+
+        localStorage.removeItem(SAVE_KEY);
+
+        const fresh = this.load();
+
+        fresh.sound = sound;
+        fresh.music = music;
+
+        this.save(fresh);
+
+    }
+
     static save(data){
 
         localStorage.setItem(

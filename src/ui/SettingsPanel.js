@@ -109,7 +109,7 @@ export default class SettingsPanel {
             scene,
             this.container,
             {
-                y: -170,
+                y: -205,
                 label: "Music",
                 icon: "iconMusic",
                 type: "toggle",
@@ -135,7 +135,7 @@ export default class SettingsPanel {
             scene,
             this.container,
             {
-                y: -40,
+                y: -85,
                 label: "Sound",
                 icon: "iconSound",
                 type: "toggle",
@@ -161,7 +161,7 @@ export default class SettingsPanel {
             scene,
             this.container,
             {
-                y: 90,
+                y: 35,
                 label: "Language",
                 icon: "iconLanguage"
             }
@@ -171,7 +171,7 @@ export default class SettingsPanel {
         // edge instead of each ending wherever its own text happened to run
         this.languageValue = scene.add.text(
             CONTROL_RIGHT,
-            90,
+            35,
             "English",
             {
                 fontFamily: "Arial",
@@ -200,7 +200,7 @@ export default class SettingsPanel {
             scene,
             this.container,
             {
-                y: 220,
+                y: 155,
                 label: "About",
                 onPress: () => this.showAbout()
             }
@@ -208,7 +208,7 @@ export default class SettingsPanel {
 
         this.aboutArrow = scene.add.text(
             CONTROL_RIGHT,
-            220,
+            155,
             ">",
             {
                 fontFamily: "Arial",
@@ -223,19 +223,53 @@ export default class SettingsPanel {
         this.container.add(this.aboutArrow);
 
         // =========================
+        // Start again
+        // =========================
+        // Without this there is no way back to a new game from inside the
+        // game. Progress lives in the WebView's own storage, so undoing it
+        // meant clearing the app's data from Android's settings - which also
+        // takes the sound and music settings with it, and which nobody would
+        // guess at.
+        this.resetRow = new SettingRow(
+            scene,
+            this.container,
+            {
+                y: 275,
+                label: "Start again",
+                onPress: () => this.confirmReset()
+            }
+        );
+
+        this.resetArrow = scene.add.text(
+            CONTROL_RIGHT,
+            275,
+            ">",
+            {
+                fontFamily: "Arial",
+                fontSize: "40px",
+                fontStyle: "bold",
+                color: "#FFE9A8",
+                stroke: "#5A2D0C",
+                strokeThickness: 4
+            }
+        ).setOrigin(1, 0.5);
+
+        this.container.add(this.resetArrow);
+
+        // =========================
         // Close Button
         // =========================
         // The carved button the level-complete screen uses for Next, rather
         // than a coloured text box - which was the one thing on this panel
         // that did not look like it came from the same game.
         this.closeButton = fitWidth(
-            scene.add.image(0, 350, "nextButton"),
+            scene.add.image(0, 380, "nextButton"),
             260
         ).setInteractive({ useHandCursor: true });
 
         this.closeLabel = scene.add.text(
             0,
-            350,
+            380,
             "CLOSE",
             {
                 fontFamily: "Arial",
@@ -268,6 +302,40 @@ export default class SettingsPanel {
      * dressed with the page's own hostname, which on a packaged app reads as
      * something has gone wrong.
      */
+    /**
+     * Asks before wiping, because this cannot be undone.
+     *
+     * The dialog says what actually goes - every level and every feather -
+     * rather than "are you sure?", which tells a player nothing about what
+     * they are agreeing to.
+     */
+    confirmReset() {
+
+        AudioManager.play(this.scene, "click");
+
+        confirmDialog(this.scene, {
+            message:
+                "Start again?\n\nEvery level goes back to\nlocked, and every\nfeather is lost.",
+            confirmText: "START AGAIN",
+            cancelText: "KEEP",
+            height: 420,
+            fontSize: "34px",
+            onConfirm: () => {
+
+                SaveManager.reset();
+
+                this.close();
+
+                // Back to the front of the game. Staying put would leave the
+                // screen behind this panel showing the progress that has just
+                // been deleted, which reads as the reset not having worked.
+                this.scene.scene.start("HomeScene");
+
+            }
+        });
+
+    }
+
     showAbout() {
 
         AudioManager.play(this.scene, "click");
