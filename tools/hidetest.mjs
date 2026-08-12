@@ -63,8 +63,18 @@ async function trial(level, where) {
         if (!target) return null;
 
         const top = target.body.body.top;
+
+        // The open spot is worked out from where the pot actually IS, not
+        // from a fixed offset. createHideSpot picks the pot's end of the
+        // plank at random per attempt, so a hardcoded "+130" landed next to
+        // the pot roughly half the time - and the test then reported that
+        // standing in the open did not get you caught, which was true,
+        // because he was not standing in the open.
+        const away = -Math.sign(target.hide.pot.x - target.plank.x) || 1;
+
         const x = w === "open"
-            ? target.plank.x + 130      // on the ledge, well clear of the pot
+            ? target.plank.x
+              + away * Math.min(130, target.plank.displayWidth / 2 - 20)
             : target.hide.pot.x;
 
         // Well clear of the ledge, then let him fall onto it. setPosition
@@ -138,10 +148,10 @@ console.log("\na fake pot should not either:");
 await trial(6, "fake");
 await trial(8, "fake");
 
-// Cover is on every second ledge, so what matters is the gap between REAL
-// pots, counted in platforms. One means a bare ledge between them - a single
-// jump to reach cover, which the shortest warning allows. Two would mean a
-// warning could arrive with nowhere reachable to go.
+// Cover is on every third ledge, so what matters is the gap between REAL
+// pots, counted in platforms. One means a bare ledge between a rung and the
+// nearest pot - a single jump, which the shortest warning allows. Two would
+// mean a warning could arrive with nowhere reachable to go.
 console.log("\nnever more than one ledge between real cover:");
 
 const gaps = await page.evaluate(() => {

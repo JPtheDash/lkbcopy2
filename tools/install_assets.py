@@ -40,6 +40,18 @@ TARGETS = {
     "platform_stone.png":    "platforms",
     "platform_cloud.png":    "platforms",
     "platform_cracked.png":  "platforms",
+
+    # World 2, Yamuna. The river and forest set: a branch to stand on, a log
+    # that drifts, a vine that gives way, and the butter hung from a tree
+    # rather than from a kitchen beam.
+    "TreeBranchPlatform.png":   "platforms",
+    "FloatingLogPlatform.png":  "platforms",
+    "HangingVinePlatform.png":  "platforms",
+    "YamunaButterTarget.png":   "items",
+    "YamunaMainBackground.png": "backgrounds",
+
+    # Krishna gripping a vine, for the ledges in world 2 that are vines
+    "KrishnaHanging.png":       "characters",
     "hazard_pot.png":        "items",
     "butter_drop.png":       "items",
     "feather.png":           "items",
@@ -69,6 +81,12 @@ RENAME = {
     "filledpot.jpg":     "pot_full.png",
     "walkingmother.jpg": "mother_walking.png",
     "angrymother.jpg":   "mother_angry.png",
+    "TreeBranchPlatform.png":   "platform_branch.png",
+    "FloatingLogPlatform.png":  "platform_log.png",
+    "HangingVinePlatform.png":  "platform_vine.png",
+    "YamunaButterTarget.png":   "butter_pot_yamuna.png",
+    "YamunaMainBackground.png": "yamuna_tall.png",
+    "KrishnaHanging.png":       "krishna_hanging.png",
 }
 
 
@@ -78,7 +96,7 @@ def staged(name):
 
 
 # Backgrounds are meant to be opaque; everything else needs transparency.
-OPAQUE_OK = {"room_tall.jpg"}
+OPAQUE_OK = {"room_tall.jpg", "YamunaMainBackground.png"}
 
 
 def normalise(name):

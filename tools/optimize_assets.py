@@ -36,6 +36,11 @@ BACKGROUNDS = {
     # wall_tile and room_base out of. Kept, but not at 2MB.
     "backgrounds/room_tall.png": 900,
     "backgrounds/room_background.png": 900,
+
+    # World 2's climb. This one IS loaded by a scene, unlike room_tall - it is
+    # drawn whole and cover-fitted rather than cut into a tile and a base, so
+    # it wants the width the screen actually uses.
+    "backgrounds/yamuna_tall.png": 900,
 }
 
 # file -> (widest on-screen width in px, quantize?)
@@ -60,6 +65,10 @@ ASSETS = {
 
     # Mother Yashoda. She is an adult beside a small boy, so she is drawn
     # taller than he is - see MOTHER_HEIGHT in GameScene.js.
+    # Hanging from a vine, so he is drawn at arm's stretch - taller in the
+    # picture than the standing frames are, for the same size of boy.
+    "characters/krishna_hanging.png": (150, False),
+
     "characters/mother_walking.png": (300, False),
     "characters/mother_angry.png": (300, False),
 
@@ -70,6 +79,18 @@ ASSETS = {
     "platforms/platform_stone.png": (300, False),
     "platforms/platform_cracked.png": (300, False),
     "platforms/platform_cloud.png": (300, False),
+
+    # World 2's ledges. The same 300 as world 1's, because PLATFORM_WIDTH in
+    # GameScene is what a jump was measured against and a wider ledge in one
+    # world would quietly make it the easier one.
+    "platforms/platform_branch.png": (300, False),
+    "platforms/platform_log.png": (300, False),
+    "platforms/platform_vine.png": (300, False),
+
+    # Hung from a branch rather than a beam, but the same prize - sized to
+    # match butter_pot.png so the swing and the grab need no second set of
+    # numbers. See BUTTER_HEIGHT in GameScene.
+    "items/butter_pot_yamuna.png": (159, False),
 
     "items/butter_drop.png": (52, False),
     "items/feather.png": (56, False),

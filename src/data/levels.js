@@ -87,12 +87,13 @@ const BOTTOM = FLOOR_Y - 160;
 // the arc is spent above the target, and every one of these is checked by
 // tools/probe.mjs against the real engine rather than against this comment.
 
-// Hiding pots sit at the end of the ledge Krishna does NOT land on, so hiding
-// means turning round and running back rather than already standing there.
-// That scramble is the whole mechanic, so the level fixes which SIDE the pot
-// stands on and nothing else. How far along it sits is picked per attempt by
-// createHideSpot(), which is the only place that knows how wide the plank and
-// the pot actually came out on screen.
+// Hiding pots sit clear of the spot Krishna lands on, so hiding means going
+// to one rather than already standing at it. That scramble is the mechanic.
+//
+// Neither the end of the plank nor the distance along it is set here: both
+// are picked per attempt by createHideSpot(), which is the only place that
+// knows how wide the plank and the pot actually came out on screen. The level
+// says only WHICH ledges carry a pot, and whether it is a real one.
 
 //-------------------------------------------------------------------
 // Timers
@@ -185,10 +186,17 @@ export const LEVELS_PER_WORLD = 10;
 // because levels already unlock one at a time and world 2 starts at level 11.
 // Finishing level 10 therefore opens Yamuna, with nothing extra written down
 // and nothing to migrate for anyone already part-way through.
+// `theme` names a row in src/data/themes.js - the background, the three
+// ledge pictures and the butter that world is drawn with. The LEVELS are
+// identical in shape whatever the theme: same ladder, same jump, same rules.
+//
+// Mathura is on the house set until its own art arrives. It is written down
+// rather than left to a default so that the day the palace pieces land, the
+// change is this one word.
 export const Worlds = [
-    { id: 1, name: "VRINDAVAN", art: "worldVrindavan" },
-    { id: 2, name: "YAMUNA",    art: "worldYamuna" },
-    { id: 3, name: "MATHURA",   art: "worldMathura" }
+    { id: 1, name: "VRINDAVAN", art: "worldVrindavan", theme: "house" },
+    { id: 2, name: "YAMUNA",    art: "worldYamuna",    theme: "river" },
+    { id: 3, name: "MATHURA",   art: "worldMathura",   theme: "house" }
 ];
 
 /**
@@ -203,7 +211,7 @@ export const Worlds = [
  */
 function climb({
     gap, count, near, far,
-    small = [], moving = [], crumbling = [], fakes = [], hideEvery = 2
+    small = [], moving = [], crumbling = [], fakes = [], hideEvery = 3
 }){
 
     const platforms = [];
@@ -228,21 +236,20 @@ function climb({
 
             ...(small.includes(i) ? { width: SMALL_WIDTH } : {}),
 
-            // Real cover sits on every hideEvery-th ledge. A pot on all of
-            // them made the room look like a pottery shelf and made hiding
-            // automatic - you were usually standing next to one already.
+            // Real cover sits on every third ledge, and that is the SPARSEST
+            // a pot can be while the game stays survivable.
             //
-            // 2 and 3 are the only usable settings, and 3 is the harder game:
-            // at 2 there is one bare ledge between hiding places, at 3 there
-            // are two, so cover is often behind you rather than beside you.
-            // 4 would put a ledge two jumps from anywhere safe, which no
-            // warning gives time for - tools/hidetest.mjs measures exactly
-            // this and fails the level.
+            // Every rung has to be within one jump of a hiding place, because
+            // a warning gives time for one jump and no more - tools/
+            // hidetest.mjs measures exactly this and fails the level
+            // otherwise. One pot covers the rung it stands on and the rung
+            // either side of it, so three rungs each, so every third rung.
+            // Four would leave a ledge two jumps from anywhere safe.
             //
-            // A count that is not a multiple of hideEvery has to be checked
-            // as well, because the top rung is wherever the ladder ends: at
-            // hideEvery 3, fourteen rungs leaves the last one two jumps from
-            // the pot on rung twelve. hidetest catches that too.
+            // It used to be every SECOND rung, which put a pot on about half
+            // the ledges in the game and made the room look like a pottery
+            // shelf - you were usually standing next to one already, so
+            // hiding was a thing that happened rather than a thing you did.
             //
             // Fakes go on the ledges in between, and are additions rather
             // than replacements. Turning a real pot into a fake would leave
@@ -256,7 +263,14 @@ function climb({
             // carrying a pot is arrived at from the same direction and every
             // pot in the game stood at the same end. createHideSpot() in
             // GameScene picks it per attempt instead.
-            ...(i % hideEvery === 0 || fakes.includes(i) ? {
+            // The top rung ALWAYS carries cover, whatever hideEvery works out
+            // to. It is the one rung a climb cannot avoid standing on - the
+            // level does not end until he is up there reaching for the pot -
+            // and it is also where a ladder that does not divide by three
+            // leaves its remainder. Covering it makes any count safe at
+            // hideEvery 3: the widest gap left anywhere is then two bare
+            // rungs, so nothing is ever more than one jump from a pot.
+            ...(i % hideEvery === 0 || i === count || fakes.includes(i) ? {
                 hide: {
                     real: !fakes.includes(i)
                 }
@@ -336,7 +350,7 @@ const Levels = [
     level({
         id: 5, timer: TIMERS[4], drops: [2, 6, 10],
         gap: 175, count: 11, ...LEFT_FIRST,
-        moving: [3, 7], crumbling: [5],
+        moving: [2, 7], crumbling: [5],
         mother: { visits: 2, warning: 2100, watch: 1400 }
     }),
 
@@ -346,7 +360,7 @@ const Levels = [
     level({
         id: 6, timer: TIMERS[5], drops: [2, 7],
         gap: 175, count: 12, ...RIGHT_FIRST,
-        moving: [3, 9], crumbling: [7],
+        moving: [2, 10], crumbling: [7],
         fakes: [5, 11],
         mother: { visits: 2, warning: 2000, watch: 1400 }
     }),
@@ -355,7 +369,7 @@ const Levels = [
     level({
         id: 7, timer: TIMERS[6], drops: [3, 8],
         gap: 175, count: 12, ...LEFT_FIRST,
-        small: [5, 11], moving: [3, 9], crumbling: [7],
+        small: [5, 11], moving: [2, 10], crumbling: [7],
         fakes: [5, 11],
         mother: { visits: 3, warning: 2000, watch: 1400, jitter: 3000 }
     }),
@@ -363,8 +377,8 @@ const Levels = [
     level({
         id: 8, timer: TIMERS[7], drops: [4, 9],
         gap: 175, count: 12, ...RIGHT_FIRST,
-        small: [3, 5, 11], moving: [7, 9], crumbling: [1],
-        fakes: [3, 11],
+        small: [2, 5, 11], moving: [7, 8], crumbling: [1],
+        fakes: [4, 11],
         mother: { visits: 3, warning: 2000, watch: 1500, jitter: 3500 }
     }),
 
@@ -381,9 +395,13 @@ const Levels = [
     // decision, it deletes a hiding place - which is how a ledge ends up two
     // jumps from cover and the level becomes unsurvivable rather than hard.
     //
-    // So with hideEvery 2 every hazard sits on an odd rung, and with
-    // hideEvery 3 on a rung that is not a multiple of three. The pattern in
-    // the arrays below is not decoration; it is that rule.
+    // Cover is on every third rung and on the top one, so every index in the
+    // arrays below avoids multiples of three and avoids `count`. The pattern
+    // in them is not decoration; it is that rule. They were laid out against
+    // an older rule that put cover on every SECOND rung, so several of them
+    // had to move when it changed - which levelcheck.mjs caught, one line per
+    // collision, rather than leaving them to be found by a player who hid
+    // behind a pot on a ledge that then slid out from under them.
     //===============================================================
 
     //---------------------------------------------------------------
@@ -397,7 +415,7 @@ const Levels = [
     level({
         id: 9, timer: TIMERS[8], drops: [3, 8, 12],
         gap: 161, count: 13, ...RIGHT_FIRST,
-        small: [7], moving: [3, 9], crumbling: [5],
+        small: [7], moving: [2, 8], crumbling: [5],
         fakes: [11],
         mother: { visits: 3, warning: 2000, watch: 1500, jitter: 3000 }
     }),
@@ -405,7 +423,7 @@ const Levels = [
     level({
         id: 10, timer: TIMERS[9], drops: [4, 10],
         gap: 161, count: 13, ...LEFT_FIRST,
-        small: [5, 9], moving: [3, 11], crumbling: [7],
+        small: [5, 8], moving: [2, 11], crumbling: [7],
         fakes: [1],
         mother: { visits: 3, warning: 1950, watch: 1500, jitter: 3000 }
     }),
@@ -416,16 +434,17 @@ const Levels = [
     level({
         id: 11, timer: TIMERS[10], drops: [4, 9, 13],
         gap: 150, count: 14, ...RIGHT_FIRST,
-        small: [5, 11], moving: [3, 9], crumbling: [7, 13],
+        small: [5, 11], moving: [2, 10], crumbling: [7, 13],
         fakes: [1],
         mother: { visits: 3, warning: 1950, watch: 1550, jitter: 3200 }
     }),
 
     //---------------------------------------------------------------
-    // 12-14: cover thins out
+    // 12-14: fewer places to run to
     //
-    // hideEvery 3. Two bare rungs between hiding places instead of one, so
-    // the pot is often behind you and hiding means going back down.
+    // Cover is on every third rung throughout the game, so what these three
+    // do is take away the things that soften it - the fakes, the narrow
+    // ledges, a visit - and leave the bare walk to a pot as the difficulty.
     //---------------------------------------------------------------
 
     // Everything else is eased off - two visits, the longest warning since
@@ -434,14 +453,14 @@ const Levels = [
     // the level that introduces three.
     level({
         id: 12, timer: TIMERS[11], drops: [2, 7, 11],
-        gap: 175, count: 12, ...LEFT_FIRST, hideEvery: 3,
+        gap: 175, count: 12, ...LEFT_FIRST,
         moving: [4], crumbling: [8],
         mother: { visits: 2, warning: 2300, watch: 1400 }
     }),
 
     level({
         id: 13, timer: TIMERS[12], drops: [5, 11],
-        gap: 161, count: 13, ...RIGHT_FIRST, hideEvery: 3,
+        gap: 161, count: 13, ...RIGHT_FIRST,
         small: [7], moving: [4, 10], crumbling: [8],
         fakes: [2],
         mother: { visits: 3, warning: 2200, watch: 1450, jitter: 2500 }
@@ -449,7 +468,7 @@ const Levels = [
 
     level({
         id: 14, timer: TIMERS[13], drops: [3, 9],
-        gap: 175, count: 12, ...LEFT_FIRST, hideEvery: 3,
+        gap: 175, count: 12, ...LEFT_FIRST,
         small: [4, 10], moving: [2, 8], crumbling: [5],
         fakes: [7],
         mother: { visits: 3, warning: 2100, watch: 1500, jitter: 3000 }
@@ -462,17 +481,16 @@ const Levels = [
     level({
         id: 15, timer: TIMERS[14], drops: [4, 10, 14],
         gap: 140, count: 15, ...RIGHT_FIRST,
-        small: [5, 11], moving: [3, 9, 13], crumbling: [7],
+        small: [5, 11], moving: [2, 10, 13], crumbling: [7],
         fakes: [1],
         mother: { visits: 3, warning: 2000, watch: 1500, jitter: 3000 }
     }),
 
-    // Fifteen rungs at hideEvery 3, which works out exactly - the top rung is
-    // a multiple of three, so it carries cover instead of being the one place
-    // you cannot hide.
+    // Fifteen rungs, which divides by three exactly - so the top rung would
+    // carry cover even without the rule that always gives it some.
     level({
         id: 16, timer: TIMERS[15], drops: [5, 11],
-        gap: 140, count: 15, ...LEFT_FIRST, hideEvery: 3,
+        gap: 140, count: 15, ...LEFT_FIRST,
         small: [7, 13], moving: [4, 10], crumbling: [8, 14],
         fakes: [2],
         mother: { visits: 3, warning: 2050, watch: 1550, jitter: 3200 }
@@ -481,7 +499,7 @@ const Levels = [
     level({
         id: 17, timer: TIMERS[16], drops: [4, 10, 14],
         gap: 131, count: 16, ...RIGHT_FIRST,
-        small: [5, 9, 13], moving: [3, 11], crumbling: [7, 15],
+        small: [5, 8, 13], moving: [2, 11], crumbling: [7, 14],
         fakes: [1],
         mother: { visits: 3, warning: 1950, watch: 1600, jitter: 3500 }
     }),
@@ -508,14 +526,14 @@ const Levels = [
     level({
         id: 18, timer: TIMERS[17], drops: [4, 8, 12],
         gap: 131, count: 16, ...LEFT_FIRST,
-        small: [3, 9, 15], moving: [5, 13], crumbling: [7, 11],
+        small: [2, 8, 14], moving: [5, 13], crumbling: [7, 11],
         fakes: [1],
         mother: { visits: 4, warning: 2000, watch: 1500, jitter: 3000 }
     }),
 
     level({
         id: 19, timer: TIMERS[18], drops: [5, 11],
-        gap: 140, count: 15, ...RIGHT_FIRST, hideEvery: 3,
+        gap: 140, count: 15, ...RIGHT_FIRST,
         small: [7, 13], moving: [2, 10], crumbling: [4, 14],
         fakes: [8],
         mother: { visits: 4, warning: 2100, watch: 1500, jitter: 3000 }
@@ -528,7 +546,7 @@ const Levels = [
     level({
         id: 20, timer: TIMERS[19], drops: [4, 10],
         gap: 131, count: 16, ...LEFT_FIRST,
-        small: [5, 11, 15], moving: [3, 9], crumbling: [7, 13],
+        small: [5, 11, 14], moving: [2, 10], crumbling: [7, 13],
         fakes: [1],
         mother: { visits: 4, warning: 1900, watch: 1600, jitter: 3000 }
     }),
@@ -545,14 +563,14 @@ const Levels = [
     level({
         id: 21, timer: TIMERS[20], drops: [4, 10, 16],
         gap: 123, count: 17, ...RIGHT_FIRST,
-        small: [5, 11, 15], moving: [3, 9, 13], crumbling: [7],
+        small: [5, 11, 14], moving: [2, 10, 13], crumbling: [7],
         fakes: [1],
         mother: { visits: 4, warning: 1900, watch: 1600, jitter: 3000 }
     }),
 
     level({
         id: 22, timer: TIMERS[21], drops: [5, 11, 17],
-        gap: 116, count: 18, ...LEFT_FIRST, hideEvery: 3,
+        gap: 116, count: 18, ...LEFT_FIRST,
         small: [7, 13], moving: [2, 10, 16], crumbling: [4, 14],
         fakes: [8],
         mother: { visits: 4, warning: 1850, watch: 1650, jitter: 3000 }
@@ -561,7 +579,7 @@ const Levels = [
     // Everything the game has, all switched on at once.
     level({
         id: 23, timer: TIMERS[22], drops: [6, 13],
-        gap: 116, count: 18, ...RIGHT_FIRST, hideEvery: 3,
+        gap: 116, count: 18, ...RIGHT_FIRST,
         small: [5, 11, 17], moving: [2, 8, 14], crumbling: [4, 10, 16],
         fakes: [7],
         mother: { visits: 4, warning: 1800, watch: 1700, jitter: 3200 }
@@ -583,14 +601,14 @@ const Levels = [
     level({
         id: 24, timer: TIMERS[23], drops: [4, 10, 16],
         gap: 110, count: 19, ...LEFT_FIRST,
-        small: [5, 11, 17], moving: [3, 9, 15], crumbling: [7, 13],
+        small: [5, 11, 17], moving: [2, 10, 16], crumbling: [7, 13],
         fakes: [1],
         mother: { visits: 4, warning: 1850, watch: 1650, jitter: 3200 }
     }),
 
     level({
         id: 25, timer: TIMERS[24], drops: [5, 11, 17],
-        gap: 110, count: 19, ...RIGHT_FIRST, hideEvery: 3,
+        gap: 110, count: 19, ...RIGHT_FIRST,
         small: [7, 13], moving: [2, 10, 16], crumbling: [4, 14],
         fakes: [8],
         mother: { visits: 4, warning: 1850, watch: 1650, jitter: 3200 }
@@ -599,16 +617,15 @@ const Levels = [
     level({
         id: 26, timer: TIMERS[25], drops: [4, 10, 16],
         gap: 105, count: 20, ...LEFT_FIRST,
-        small: [5, 11, 17], moving: [3, 9, 15], crumbling: [7, 13, 19],
+        small: [5, 11, 17], moving: [2, 10, 16], crumbling: [7, 13, 19],
         fakes: [1],
         mother: { visits: 4, warning: 1800, watch: 1700, jitter: 3400 }
     }),
 
-    // Twenty-one rungs at hideEvery 3, which divides exactly - so the top
-    // rung carries cover rather than being the one place there is none.
+    // Twenty-one rungs, another that divides by three exactly.
     level({
         id: 27, timer: TIMERS[26], drops: [5, 11, 17],
-        gap: 100, count: 21, ...RIGHT_FIRST, hideEvery: 3,
+        gap: 100, count: 21, ...RIGHT_FIRST,
         small: [7, 13, 19], moving: [2, 10, 16], crumbling: [4, 14, 20],
         fakes: [8],
         mother: { visits: 4, warning: 1800, watch: 1700, jitter: 3400 }
@@ -628,7 +645,7 @@ const Levels = [
     level({
         id: 28, timer: TIMERS[27], drops: [4, 10, 16],
         gap: 100, count: 21, ...LEFT_FIRST,
-        small: [5, 11, 17], moving: [3, 9, 15, 19], crumbling: [7, 13],
+        small: [5, 11, 17], moving: [2, 10, 16, 19], crumbling: [7, 13],
         fakes: [1],
         mother: { visits: 5, warning: 1800, watch: 1650, jitter: 2600 }
     }),
@@ -636,7 +653,7 @@ const Levels = [
     level({
         id: 29, timer: TIMERS[28], drops: [4, 10, 16],
         gap: 95, count: 22, ...RIGHT_FIRST,
-        small: [5, 11, 17, 21], moving: [3, 9, 15], crumbling: [7, 13, 19],
+        small: [5, 11, 17, 20], moving: [2, 10, 16], crumbling: [7, 13, 19],
         fakes: [1],
         mother: { visits: 5, warning: 1800, watch: 1700, jitter: 2800 }
     }),
@@ -645,7 +662,7 @@ const Levels = [
     // third rung, five visits, and only two butter drops to buy time back.
     level({
         id: 30, timer: TIMERS[29], drops: [5, 11],
-        gap: 95, count: 22, ...LEFT_FIRST, hideEvery: 3,
+        gap: 95, count: 22, ...LEFT_FIRST,
         small: [7, 13, 19], moving: [2, 10, 16], crumbling: [4, 14, 20],
         fakes: [8],
         mother: { visits: 5, warning: 1800, watch: 1700, jitter: 2800 }

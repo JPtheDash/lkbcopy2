@@ -61,6 +61,14 @@ KEYING = {
     # channel - every pixel in it arrived fully opaque.
     "KrishnaCaught.png": "checker",
 
+    # The Yamuna set, delivered the same way - 1408x768 and 100% opaque, with
+    # the editor's chequerboard rendered into the pixels.
+    "TreeBranchPlatform.png": "checker",
+    "FloatingLogPlatform.png": "checker",
+    "HangingVinePlatform.png": "checker",
+    "YamunaButterTarget.png": "checker",
+    "KrishnaHanging.png": "checker",
+
     "platform_wood.png": "flood",
     "platform_stone.png": "flood",
     "platform_cracked.png": "flood",
@@ -93,6 +101,26 @@ SINGLE_SUBJECT = {
     "filledpot.jpg",
     "walkingmother.jpg",
     "angrymother.jpg",
+    "TreeBranchPlatform.png",
+    "FloatingLogPlatform.png",
+    "HangingVinePlatform.png",
+    "YamunaButterTarget.png",
+    "KrishnaHanging.png",
+}
+
+# Art with a pocket of backdrop SEALED inside it by the drawing itself. The
+# fill only ever spreads inwards from the border, so it cannot reach these:
+# the vine curls round into a cradle, and the butter pot's rope makes a
+# triangle with the pot's own rim. Both came out with a patch of chequerboard
+# in the middle of the picture.
+#
+# Unlike SCENES these need no --halo - nothing is walling the fill out of the
+# rest of the image, so only the sealed pools are left to deal with. 0 means
+# cut the chequered pools and leave flat ones alone, which is all that is
+# wanted here.
+SEALED = {
+    "HangingVinePlatform.png",
+    "YamunaButterTarget.png",
 }
 
 # Scenes, where something in the picture walls the backdrop off from the
@@ -226,6 +254,9 @@ def key():
 
         if name in GLOW:
             flags += ("--halo", str(GLOW[name]))
+
+        if name in SEALED:
+            flags += ("--islands", "0")
 
         if name in SCENES:
             pools, glow, pockets = SCENES[name]

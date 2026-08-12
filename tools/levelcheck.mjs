@@ -111,6 +111,28 @@ for (const level of Levels) {
         });
     }
 
+    // A sliding ledge directly above a crumbling one asks the player to leave
+    // ground that is falling away and land on ground that is moving - the two
+    // hardest things in the game, at the same instant, with no way to wait
+    // out either.
+    //
+    // Nothing ever chose that. It appeared when hazards were nudged off the
+    // rungs that carry cover, `moving` landed on the rung above `crumbling`
+    // in ten levels at once, and it went unnoticed until the bot stalled
+    // under one of them in level 7.
+    level.platforms.forEach((p, i) => {
+
+        const above = level.platforms[i + 1];
+
+        if (p.type === "crumbling" && above && above.type === "moving") {
+            problems.push(
+                `${where}: rung ${i} crumbles and rung ${i + 1} slides - ` +
+                `leaving a ledge that is falling away for one that is moving`
+            );
+        }
+
+    });
+
     // The climb has to leave room above the last rung for the pot and rope
     const top = level.platforms[level.platforms.length - 1].y;
 

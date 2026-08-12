@@ -27,7 +27,8 @@ import playButtonImg from "../assets/ui/play_button.png";
 import getStars from "../ui/StarReward";
 import AudioManager from "../managers/AudioManager";
 import LevelManager from "../managers/LevelManager";
-import Levels, { TOP_LIMIT } from "../data/levels";
+import Levels, { TOP_LIMIT, Worlds } from "../data/levels";
+import { THEMES, themeFor } from "../data/themes";
 import MotherWatch from "../game/MotherWatch";
 import { fitWidth, fitHeight, coverScreen, GAME_WIDTH, GAME_HEIGHT, WORLD_HEIGHT, FLOOR_Y } from "../ui/layout";
 
@@ -67,9 +68,23 @@ const SWIPE_AIR_DURATION = 1200;
 
 const PLATFORM_WIDTH = 300;
 
+// How far above a rung's nominal y the standing surface sits. See
+// createPlatform - this is what the gaps in levels.js were measured against.
+const SURFACE_ABOVE = 33;
+
+// How far past the screen edge an attached ledge is drawn, so that its end is
+// never visible - a branch that stops exactly at the edge reads as cut off
+// rather than as continuing into the tree.
+const ATTACH_OVERRUN = 40;
+
 // Each kind of ledge gets its own art, so what a platform does is readable
 // before you land on it rather than after. These used to be one texture under
 // three tints, which mostly read as "the same plank, oddly coloured".
+// Which picture each kind of ledge is drawn with is now a property of the
+// WORLD, not of the game - see src/data/themes.js. Vrindavan's shelves and
+// Yamuna's branches behave identically; only the art differs.
+//
+// Kept as the fallback for a world with no theme of its own.
 const PLATFORM_TEXTURE = {
     normal: "platform",
     moving: "platform-cloud",
@@ -112,24 +127,10 @@ const FOOT_INSET = 3;
 const BODY_WIDTH = 52;
 const BODY_HEIGHT = 22;
 
-// The prize, measured over the whole picture - which is mostly the rope it
-// hangs from. The pot itself works out around 150 tall, against 58 before.
-const BUTTER_HEIGHT = 330;
-
-// Where the pot starts inside that picture: everything above this line is
-// the rope it hangs by. Keep it in step with POT_BODY_TOP in
-// tools/optimize_assets.py, which cuts the standing pot out at the same line.
-//
-// The pot is the only part worth colliding with - grabbing the middle of a
-// rope is not reaching the butter - and it is also what the swing carries
-// around, so both come from here.
-const POT_BODY_TOP = 0.55;
-const POT_BODY_CENTRE = (1 + POT_BODY_TOP) / 2;
-const POT_BODY_RADIUS = 0.5;
-
-// A pendulum on a rope. Slow and shallow: the pot has to be catchable by
-// someone standing under it, so this is atmosphere, not an obstacle.
-const SWING_ANGLE = 13;
+// The prize's size, the line its pot starts at, how wide that pot is and how
+// far it swings all live with the WORLD now, in src/data/themes.js - the two
+// pictures are drawn too differently to share one set of numbers. Only the
+// speed of the swing is common to both.
 const SWING_MS = 1600;
 
 const DROP_HEIGHT = 52;
@@ -192,6 +193,10 @@ const DUCK_SCALE = 0.46;
 // as the level.
 const BG_PARALLAX = 0.55;
 
+// How much taller than the screen a whole-painting backdrop is drawn. The
+// surplus is what the climb pans through, so 1 would leave it motionless.
+const BACKDROP_OVERSCAN = 1.35;
+
 export default class GameScene extends Phaser.Scene {
 
     constructor() {
@@ -210,6 +215,29 @@ export default class GameScene extends Phaser.Scene {
         loadImage(this, "platform-cracked", platformCracked);
         loadImage(this, "platform-cloud", platformCloud);
         loadImage(this, "butter", butterPot);
+
+        // Every world's set, not just this level's. Phaser loads a key once
+        // however many times it is asked for, and the alternative - working
+        // out the world in init() and loading only its art - leaves a scene
+        // restarted into a different world reaching for textures that were
+        // never fetched. That shows up as an invisible ledge, which is a far
+        // worse trade than the few hundred KB this costs.
+        Object.values(THEMES).forEach(theme => {
+
+            loadImage(this, theme.climb.key, theme.climb.url);
+            loadImage(this, theme.butter.key, theme.butter.url);
+
+            if(theme.hang){
+
+                loadImage(this, theme.hang.key, theme.hang.url);
+
+            }
+
+            Object.values(theme.platforms).forEach(
+                art => loadImage(this, art.key, art.url)
+            );
+
+        });
         loadImage(this, "butterDrop", butterDrop);
         loadImage(this, "krishnaSitting", krishnaSitting);
         loadImage(this, "spark", sparkImg);
@@ -238,30 +266,30 @@ export default class GameScene extends Phaser.Scene {
 
         const levelConfig = LevelManager.getLevel(this.level);
 
+        // What this level is drawn with. The level itself says nothing about
+        // it - the ladder, the jump and the rules are identical in every
+        // world - so the look is looked up from which world the level is in.
+        this.theme = themeFor(Worlds[LevelManager.worldOf(this.level) - 1]);
+
         this.isPaused = false;
         this.isGameOver = false;
         this.wasGrounded = true;
+        this.hanging = false;
 
         //-------------------------
         // Background
         //-------------------------
 
-        // Plain plaster covering the height of the climb. Tiling the whole
-        // room repeated its floor and window every 720px; this patch is
-        // mirrored on both axes so the repeat is invisible.
-        this.background = this.add
-            .tileSprite(0, 0, GAME_WIDTH, GAME_HEIGHT, "wall")
-            .setOrigin(0, 0)
-            .setScrollFactor(0)
-            .setDepth(-12);
+        // Cleared before rebuilding. A Phaser scene is reused across
+        // restarts and keeps whatever properties the last run left on it, so
+        // starting a Yamuna level after a Vrindavan one arrived with
+        // this.background still pointing at the destroyed tile sprite - and
+        // driftBackground, which checks that first, then never panned the
+        // painting it had just built.
+        this.background = null;
+        this.backdrop = null;
 
-        // The real room, drawn once at the bottom. Its top edge is already
-        // faded into the plaster colour by tools/optimize_assets.py.
-        const base = this.add.image(GAME_WIDTH/2, 0, "roomBase")
-            .setDepth(-11);
-
-        fitWidth(base, GAME_WIDTH);
-        base.setY(WORLD_HEIGHT - base.displayHeight/2);
+        this.buildBackground();
 
         // Depth haze so the top of the climb reads as further away
         this.add.rectangle(
@@ -411,29 +439,43 @@ export default class GameScene extends Phaser.Scene {
         // rotating it swings the pot around the point it hangs from. Rotating
         // about the middle of the picture would swing the rope's fixing
         // instead, which is not how a rope behaves.
-        this.butter = this.add.image(potX, potY, "butter").setOrigin(0.5, 0);
+        // The prize carries its own geometry, because the two worlds draw it
+        // very differently: Vrindavan's is a tall picture that is mostly rope,
+        // Yamuna's is a branch with a pot slung under it. See data/themes.js.
+        const prize = this.theme.butter;
 
-        fitHeight(this.butter, BUTTER_HEIGHT);
+        this.butter = this.add.image(potX, potY, prize.key).setOrigin(0.5, 0);
+
+        fitHeight(this.butter, prize.height);
 
         // levelConfig.butter says where the POT goes; the anchor is a rope's
         // length above that.
-        this.butter.setY(potY - BUTTER_HEIGHT * POT_BODY_CENTRE);
+        this.butter.setY(potY - prize.height * this.potCentre());
 
-        this.butter.setAngle(-SWING_ANGLE);
+        // A short rope does not swing. Yamuna's pot is lashed to a branch on
+        // a fraction of the rope Vrindavan's hangs by, and rotating it about
+        // a fixing that close only spins the pot on the spot - which reads as
+        // a wobble, not a hang. Its own branch is in the same drawing, too,
+        // so the tree would swing along with the butter.
+        if(prize.swing > 0){
 
-        this.tweens.add({
-            targets: this.butter,
-            angle: SWING_ANGLE,
-            duration: SWING_MS,
-            yoyo: true,
-            repeat: -1,
-            ease: "Sine.easeInOut"
-        });
+            this.butter.setAngle(-prize.swing);
+
+            this.tweens.add({
+                targets: this.butter,
+                angle: prize.swing,
+                duration: SWING_MS,
+                yoyo: true,
+                repeat: -1,
+                ease: "Sine.easeInOut"
+            });
+
+        }
 
         // Lit from behind so it reads from the bottom of the level. Sized and
         // placed against the pot rather than the whole picture, which is
         // mostly rope - a glow around all of it would light the ceiling.
-        const potSize = BUTTER_HEIGHT * (1 - POT_BODY_TOP);
+        const potSize = prize.height * (1 - prize.bodyTop);
 
         this.butterGlow = this.add.image(potX, potY, "glow")
             .setBlendMode(Phaser.BlendModes.ADD)
@@ -749,6 +791,120 @@ export default class GameScene extends Phaser.Scene {
      * the decision, and levels only introduce them once the mechanic itself
      * is understood, never two in a row, so a real one is always a jump away.
      */
+    /**
+     * Which picture this kind of ledge is drawn with in this world.
+     *
+     * Falls back to the house set rather than to nothing: a world whose art
+     * has not arrived yet still gets a playable level, drawn in shelves,
+     * instead of a climb of invisible ledges.
+     */
+    plankArt(type){
+
+        const art = this.theme && this.theme.platforms[type];
+
+        if(art){ return art; }
+
+        return {
+            key: PLATFORM_TEXTURE[type] || PLATFORM_TEXTURE.normal,
+            surface: 0
+        };
+
+    }
+
+    //------------------------------------------------
+
+    /**
+     * The backdrop, drawn one of two ways.
+     *
+     * TILED, for a room. Yashoda's house is plaster with a floor at the
+     * bottom, so it is a tile fixed to the camera plus the room drawn once
+     * underneath it - which covers a climb of any height with art of none.
+     *
+     * WHOLE, for a place. The Yamuna riverbank is a single painting with a
+     * horizon in it, and a horizon cannot be repeated up a wall - tiled, the
+     * river would appear again in the sky. So it is drawn once, taller than
+     * the screen, and panned through as the camera climbs: the bottom of the
+     * painting at the floor, the top of it at the top.
+     */
+    buildBackground(){
+
+        const climb = this.theme.climb;
+
+        if(!climb.tiled){
+
+            this.backdrop = this.add
+                .image(GAME_WIDTH/2, 0, climb.key)
+                .setOrigin(0.5, 0)
+                .setScrollFactor(0)
+                .setDepth(-12);
+
+            // Taller than the screen on purpose. The slack is what there is
+            // to pan through - fitted exactly to the screen there would be
+            // nothing to move, and the backdrop would sit dead still behind a
+            // climb of two thousand pixels.
+            fitHeight(this.backdrop, GAME_HEIGHT * BACKDROP_OVERSCAN);
+
+            this.backdropTravel = Math.max(
+                0, this.backdrop.displayHeight - GAME_HEIGHT
+            );
+
+            this.driftBackground();
+
+            return;
+
+        }
+
+        // Plain plaster covering the height of the climb. Tiling the whole
+        // room repeated its floor and window every 720px; this patch is
+        // mirrored on both axes so the repeat is invisible.
+        this.background = this.add
+            .tileSprite(0, 0, GAME_WIDTH, GAME_HEIGHT, "wall")
+            .setOrigin(0, 0)
+            .setScrollFactor(0)
+            .setDepth(-12);
+
+        // The real room, drawn once at the bottom. Its top edge is already
+        // faded into the plaster colour by tools/optimize_assets.py.
+        const base = this.add.image(GAME_WIDTH/2, 0, "roomBase")
+            .setDepth(-11);
+
+        fitWidth(base, GAME_WIDTH);
+        base.setY(WORLD_HEIGHT - base.displayHeight/2);
+
+    }
+
+    //------------------------------------------------
+
+    /** Moves the backdrop for where the camera has got to. */
+    driftBackground(){
+
+        if(this.background){
+
+            // Parallax: the backdrop drifts slower than the level itself
+            this.background.tilePositionY =
+                this.cameras.main.scrollY * BG_PARALLAX;
+
+            return;
+
+        }
+
+        if(!this.backdrop){ return; }
+
+        // 0 on the floor, 1 at the top of the climb. Guarded because a world
+        // no taller than the screen would divide by zero here, and the whole
+        // backdrop would vanish rather than simply not moving.
+        const range = WORLD_HEIGHT - GAME_HEIGHT;
+
+        const climbed = range > 0
+            ? 1 - Phaser.Math.Clamp(this.cameras.main.scrollY / range, 0, 1)
+            : 1;
+
+        this.backdrop.setY(-this.backdropTravel * (1 - climbed));
+
+    }
+
+    //------------------------------------------------
+
     createHideSpot(spec, plank){
 
         const pot = fitHeight(
@@ -787,7 +943,9 @@ export default class GameScene extends Phaser.Scene {
         pot.setX(plank.x + side * offset);
 
         // Standing on the plank, not floating over it
-        pot.setY(plank.y - plank.displayHeight/2 - pot.displayHeight/2 + 12);
+        // On the standing line, not on the top edge of the picture - for a
+        // vine those are 236px apart and the pot floated high above the ledge.
+        pot.setY(plank.surfaceY - pot.displayHeight/2 + 12);
 
         // In front of Krishna, so ducking behind it actually looks like it
         pot.setDepth(20);
@@ -902,16 +1060,93 @@ export default class GameScene extends Phaser.Scene {
         // Levels may ask for a narrower ledge to make a jump harder to land
         const width = spec.width || PLATFORM_WIDTH;
 
+        const art = this.plankArt(type);
+
         const plank = fitWidth(
-            this.add.image(x, y, PLATFORM_TEXTURE[type] || PLATFORM_TEXTURE.normal),
+            this.add.image(x, y, art.key),
             width
         );
 
-        const surfaceOffset = -plank.displayHeight/2 + 10;
+        // THE LINE KRISHNA STANDS ON
+        //
+        // A fixed distance above the rung's nominal y, and no longer derived
+        // from how tall the picture happens to be. Every gap in levels.js was
+        // measured against world 1's shelves, whose surfaces sat 31 to 34px
+        // above the line - so 33 keeps those levels where they were while
+        // giving every other world the same line to meet.
+        //
+        // Derived from the art's height, it moved with the art: Yamuna's vine
+        // is 375px tall against a shelf's 69, which would have put its
+        // standing line 150px above where the level asked for it.
+        const surfaceY = y - SURFACE_ABOVE;
+
+        // ROOTED TO THE SIDE IT IS NEAREST
+        //
+        // A branch grows out of a tree and a vine hangs off one, so neither
+        // should end in mid air. The art is turned to face inward and then
+        // stretched until its outer end is off the screen, which puts its
+        // thick end into the trunk the background already draws there.
+        //
+        // The standable strip is stretched with it. Left at its nominal 300
+        // there would be a foot of visible branch at the edge that could not
+        // be stood on - which is worse than not attaching it at all, because
+        // it looks like ground and is not.
+        let plankX = x;
+        let bodyWidth = width * 0.92;
+        let bodyX = x;
+
+        const onLeft = x < GAME_WIDTH/2;
+
+        if(art.attach || art.face){
+
+            // The art is drawn thick-end-left, so a ledge on the right of the
+            // screen is the one that has to be turned round.
+            plank.setFlipX(!onLeft);
+
+        }
+
+        if(art.attach){
+
+            const inner = onLeft ? x + width/2 : x - width/2;
+            const outer = onLeft ? -ATTACH_OVERRUN : GAME_WIDTH + ATTACH_OVERRUN;
+
+            const span = Math.abs(inner - outer);
+
+            fitWidth(plank, span);
+
+            plankX = (inner + outer) / 2;
+
+            // Only the part on screen is worth standing on
+            const visibleOuter = onLeft ? 0 : GAME_WIDTH;
+
+            bodyWidth = Math.abs(inner - visibleOuter);
+            bodyX = (inner + visibleOuter) / 2;
+
+        }
+
+        plank.setX(plankX);
+
+        // Slide the picture so the part that IS solid meets that line. The
+        // top row of a branch is a leaf and the top row of a vine is the far
+        // end of a curl; neither is something to stand on.
+        //
+        // After any stretch, because stretching changed how tall it is.
+        plank.setY(surfaceY + plank.displayHeight * (0.5 - (art.surface || 0)));
+
+        // Kept on the plank so the hiding pot can stand on the same line
+        // rather than on the top edge of the picture.
+        plank.surfaceY = surfaceY;
+
+        // How far the collision strip sits from the middle of the picture.
+        // A moving ledge re-places its body against the plank every frame, so
+        // it needs the gap between the two rather than either of their
+        // absolute positions - and that gap is no longer half the picture's
+        // height now that the art is slid to meet the standing line.
+        const surfaceOffset = (surfaceY + 10) - plank.y;
 
         const body = this.platformBodies
-            .create(x, y + surfaceOffset, null)
-            .setDisplaySize(width * 0.92, 20)
+            .create(bodyX, surfaceY + 10, null)
+            .setDisplaySize(bodyWidth, 20)
             .setVisible(false);
 
         body.refreshBody();
@@ -967,6 +1202,42 @@ export default class GameScene extends Phaser.Scene {
     //------------------------------------------------
 
     /** True when Krishna is standing on this particular platform. */
+    /**
+     * Swaps between the standing sheet and the single hanging drawing.
+     *
+     * Guarded on the current state rather than run every frame: setTexture
+     * plus a refit on every tick would rescale him sixty times a second, and
+     * the squash tween that plays on landing would be fighting it.
+     */
+    setHanging(on){
+
+        if(on === this.hanging){ return; }
+
+        this.hanging = on;
+
+        if(on){
+
+            this.krishnaArt.setTexture(this.theme.hang.key);
+
+            fitHeight(this.krishnaArt, this.theme.hang.height);
+
+        }
+        else{
+
+            this.krishnaArt.setTexture(KRISHNA_KEY, 0);
+
+            fitHeight(this.krishnaArt, KRISHNA_HEIGHT);
+
+        }
+
+        // The squash tween springs back to this, so it has to follow the
+        // swap or the next landing would snap him to the other pose's size.
+        this.krishnaScale = this.krishnaArt.scaleX;
+
+    }
+
+    //------------------------------------------------
+
     isStandingOn(platform){
 
         if(!platform.body.body.enable){
@@ -1301,11 +1572,26 @@ export default class GameScene extends Phaser.Scene {
      * angle, so the swing and the collision can never disagree about where
      * the pot is - and so the sign of the rotation is Phaser's problem.
      */
+    /**
+     * How far down its own picture this world's pot sits, as a fraction.
+     *
+     * Halfway between where the pot starts and the bottom of the picture -
+     * which is the pot's middle, and therefore both what the swing carries
+     * round and what has to be reached to win.
+     */
+    potCentre(){
+
+        return (1 + this.theme.butter.bodyTop) / 2;
+
+    }
+
+    //------------------------------------------------
+
     potPoint(){
 
         return this.butter
             .getWorldTransformMatrix()
-            .transformPoint(0, this.butter.height * POT_BODY_CENTRE);
+            .transformPoint(0, this.butter.height * this.potCentre());
 
     }
 
@@ -1349,7 +1635,7 @@ export default class GameScene extends Phaser.Scene {
         const pot = this.potPoint();
 
         const grab = new Phaser.Geom.Circle(
-            pot.x, pot.y, this.butter.displayWidth * POT_BODY_RADIUS
+            pot.x, pot.y, this.butter.displayWidth * this.theme.butter.radius
         );
 
         if(Phaser.Geom.Intersects.CircleToRectangle(grab, reach)){
@@ -1417,7 +1703,10 @@ export default class GameScene extends Phaser.Scene {
             .setAngle(0)
             .setPosition(pot.x, pot.y);
 
-        fitHeight(this.butter, BUTTER_HEIGHT * (1 - POT_BODY_TOP));
+        fitHeight(
+            this.butter,
+            this.theme.butter.height * (1 - this.theme.butter.bodyTop)
+        );
 
         this.tweens.add({
             targets: [this.butter, this.butterGlow],
@@ -1950,13 +2239,38 @@ export default class GameScene extends Phaser.Scene {
 
         this.wasGrounded = grounded;
 
-        // Anchored by the feet, not the centre. Any vertical squash - ducking
-        // behind a pot, or the landing squash - would otherwise lift him off
-        // the surface he is standing on by half of whatever it removed.
-        this.krishnaArt.setPosition(
-            this.krishna.x,
-            this.krishna.y + (KRISHNA_HEIGHT - this.krishnaArt.displayHeight)/2
-        );
+        if(this.hanging){
+
+            // Hung by the HAND. His feet are off the vine by definition, so
+            // anchoring him by them - which is right for every other pose -
+            // would sit him on top of the thing he is supposed to be dangling
+            // from. The grip is measured off the art in themes.js because it
+            // is neither the middle of the drawing nor its corner.
+            const grip = this.theme.hang.grip;
+
+            const art = this.krishnaArt;
+
+            const gripX = (grip.x - 0.5) * art.displayWidth * (art.flipX ? -1 : 1);
+            const gripY = (grip.y - 0.5) * art.displayHeight;
+
+            art.setPosition(
+                this.krishna.x - gripX,
+                this.krishna.body.bottom - gripY
+            );
+
+        }
+        else{
+
+            // Anchored by the feet, not the centre. Any vertical squash -
+            // ducking behind a pot, or the landing squash - would otherwise
+            // lift him off the surface he is standing on by half of whatever
+            // it removed.
+            this.krishnaArt.setPosition(
+                this.krishna.x,
+                this.krishna.y + (KRISHNA_HEIGHT - this.krishnaArt.displayHeight)/2
+            );
+
+        }
 
         this.setDucking(this.isHidden());
 
@@ -1972,9 +2286,7 @@ export default class GameScene extends Phaser.Scene {
 
         this.checkButter();
 
-        // Parallax: the backdrop drifts slower than the level itself
-        this.background.tilePositionY =
-            this.cameras.main.scrollY * BG_PARALLAX;
+        this.driftBackground();
 
         //-------------------------
         // Pose
@@ -1985,7 +2297,24 @@ export default class GameScene extends Phaser.Scene {
 
         // Rising and falling get their own pose, so the jump reads as an arc
         // rather than one held frame.
-        if(!grounded){
+        // A vine is something to hold, not something to stand on. On one he
+        // takes hold of it and hangs; everywhere else he is on his feet.
+        const vine = grounded && this.theme.hang
+            ? this.platforms.find(
+                  p => p.type === "crumbling" && this.isStandingOn(p)
+              )
+            : null;
+
+        this.setHanging(!!vine);
+
+        if(this.hanging){
+
+            // No animation: it is one drawing, and playing an animation over
+            // it would put a standing frame back on the next tick.
+            this.krishnaArt.anims.stop();
+
+        }
+        else if(!grounded){
 
             this.krishnaArt.play(
                 vy < 0 ? "krishna-jump" : "krishna-fall", true
