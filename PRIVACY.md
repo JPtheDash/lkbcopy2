@@ -1,7 +1,7 @@
 # Privacy Policy — Little Krishna's Butter Hunt
 
 **Effective date:** 2 August 2026
-**Developer:** JPtheDash
+**Developer:** Dijytal
 **Contact:** Dijytalwonder@gmail.com
 
 ## The short version
