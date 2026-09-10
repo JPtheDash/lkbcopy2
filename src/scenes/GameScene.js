@@ -2325,32 +2325,25 @@ export default class GameScene extends Phaser.Scene {
     runShareTarget(id){
 
         const text = this.shareMessage();
-        const full = encodeURIComponent(text);
-        const store = encodeURIComponent(STORE_URL);
-
-        const open = url => window.open(url, "_blank", "noopener,noreferrer");
 
         switch(id){
 
-            case "whatsapp":
-                open(`https://wa.me/?text=${full}`);
-                break;
-
-            case "facebook":
-                open(`https://www.facebook.com/sharer/sharer.php?u=${store}`);
-                break;
-
-            case "instagram":
-                // Instagram takes no shared text or link - only a picture - so
-                // the idol card goes out through the share sheet, which is also
-                // where Instagram appears. On the dev preview this saves the
-                // card and copies the caption instead.
-                this.shareCardImage();
-                break;
-
             case "copy":
-            default:
                 this.copyShare(text);
+                break;
+
+            // WhatsApp, Instagram and Facebook all send the IMAGE, and the only
+            // thing that can hand a picture to another app is the operating
+            // system's own share sheet - a wa.me / sharer.php link carries text
+            // only. So every app button opens the share sheet with the idol
+            // card attached; the player then taps the app they want and the
+            // picture goes with it. (On the desktop dev preview, which has no
+            // share sheet, this saves the card and copies the caption instead.)
+            case "whatsapp":
+            case "instagram":
+            case "facebook":
+            default:
+                this.shareCardImage();
                 break;
 
         }
