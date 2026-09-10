@@ -260,16 +260,12 @@ export default class ShareScene extends Phaser.Scene {
         // Measured up from the bottom so the sheet sits under the card rather
         // than over it - the point of a chooser is not to hide the thing
         // being chosen for.
-        const closeY = GAME_HEIGHT - 70;
-        const rowTwoY = GAME_HEIGHT - 168;
-        const rowOneY = GAME_HEIGHT - 250;
-        const pictureY = GAME_HEIGHT - 350;
-        const titleY = GAME_HEIGHT - 424;
+        const closeY = GAME_HEIGHT - 80;
+        const copyY = GAME_HEIGHT - 178;
+        const pictureY = GAME_HEIGHT - 278;
+        const titleY = GAME_HEIGHT - 352;
 
-        // A solid ground under the sheet, not just the dimming. At 0.8 the
-        // page's own ADD YOUR NAME and WORLDS buttons still showed through
-        // from directly behind the app row, so the sheet looked like it was
-        // printed on top of the page rather than laid over it.
+        // A solid ground under the sheet, not just the dimming.
         keep(
             this.add.rectangle(
                 cx, (titleY - 30 + GAME_HEIGHT)/2,
@@ -285,36 +281,37 @@ export default class ShareScene extends Phaser.Scene {
             color: "#FFD54A"
         }).setOrigin(0.5));
 
-        // First, and widest, because it is the only one that carries the
-        // picture - see shareTargets.js for why a link cannot.
+        // ONE picture button. Every app that can take an image takes it the
+        // same way - through the operating system's share sheet - so a row of
+        // per-app buttons was six ways to open one sheet. This opens it once;
+        // the player then picks WhatsApp, Instagram, Facebook or anything else,
+        // with the card attached. See shareTargets.js for why a link cannot
+        // carry the picture itself.
         const picture = this.button(
-            cx, pictureY, 480, 82, "SHARE THE PICTURE", 0x2E7D32,
+            cx, pictureY, 480, 86, "SHARE THE PICTURE", 0x2E7D32,
             () => { this.closeChooser(); this.sharePicture(); }, "30px"
         );
 
         keep(picture.box);
         keep(picture.text);
 
-        const gap = 16;
-        const width = (GAME_WIDTH - 80 - gap * 2) / 3;
+        // For anyone who just wants the words and the link, no picture.
+        const copy = this.button(
+            cx, copyY, 480, 74, "COPY TEXT", 0xB96A16,
+            async () => {
+                this.closeChooser();
+                const done = await copyText(this.result);
+                this.say(
+                    done === "copied"
+                        ? "Copied - paste it anywhere."
+                        : "Could not copy.",
+                    done !== "copied"
+                );
+            }, "28px"
+        );
 
-        TARGETS.forEach((target, i) => {
-
-            const row = Math.floor(i / 3);
-            const col = i % 3;
-
-            const made = this.button(
-                40 + width/2 + col * (width + gap),
-                row === 0 ? rowOneY : rowTwoY,
-                width, 66, target.label, target.colour,
-                () => { this.closeChooser(); this.useTarget(target); },
-                "24px"
-            );
-
-            keep(made.box);
-            keep(made.text);
-
-        });
+        keep(copy.box);
+        keep(copy.text);
 
         const close = this.button(
             cx, closeY, 240, 60, "CLOSE", 0x3A2A18,

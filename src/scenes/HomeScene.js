@@ -308,10 +308,10 @@ export default class HomeScene extends Phaser.Scene {
      */
     createEventIcon(){
 
-        // Right-hand side, vertically centred - clear of the title sign at the
-        // top and the play button and settings gear near the bottom.
-        const x = GAME_WIDTH - 96;
-        const y = GAME_HEIGHT / 2;
+        // Right-hand side, a little above centre - clear of the title sign at
+        // the top and the play button and settings gear near the bottom.
+        const x = GAME_WIDTH - 104;
+        const y = GAME_HEIGHT / 2 - 90;
 
         this.makeGlowLight();
 
@@ -321,19 +321,19 @@ export default class HomeScene extends Phaser.Scene {
         // badge so the whole thing shimmers.
         const halo = this.add.image(x, y, "glowLight")
             .setBlendMode(Phaser.BlendModes.ADD)
-            .setDisplaySize(290, 290)
+            .setDisplaySize(340, 340)
             .setAlpha(0.55)
             .setDepth(3);
 
         const core = this.add.image(x, y, "glowLight")
             .setBlendMode(Phaser.BlendModes.ADD)
-            .setDisplaySize(190, 190)
+            .setDisplaySize(225, 225)
             .setAlpha(0.7)
             .setDepth(4);
 
         const icon = fitWidth(
             this.add.image(x, y, "ganeshIcon"),
-            168
+            205
         ).setDepth(5).setInteractive({ useHandCursor: true });
 
         // The glow swells and brightens
@@ -369,10 +369,10 @@ export default class HomeScene extends Phaser.Scene {
 
         // The occasion, on a small plate under the badge
         const label = this.add.text(
-            x, y + 78, "GANESH UTSAV",
+            x, y + 118, "GANESH UTSAV",
             {
                 fontFamily: "Arial",
-                fontSize: "18px",
+                fontSize: "19px",
                 fontStyle: "bold",
                 color: "#FFE9A8",
                 stroke: "#5A2D0C",
@@ -380,7 +380,7 @@ export default class HomeScene extends Phaser.Scene {
             }
         ).setOrigin(0.5).setDepth(6);
 
-        this.add.rectangle(x, y + 78, label.width + 16, 26, 0x7A3B0A, 0.55)
+        this.add.rectangle(x, y + 118, label.width + 16, 28, 0x7A3B0A, 0.55)
             .setDepth(5);
 
         // Back above the plate it was drawn after

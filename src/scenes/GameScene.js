@@ -844,7 +844,9 @@ export default class GameScene extends Phaser.Scene {
         // is a fail state, so leaving her running would make the reachability
         // tests report level design faults that are really just a bot with no
         // instinct for hiding.
-        if(!this.__noMother && !data.noMother){
+        // No Yashoda in the festival event - it is a joyful climb to offer the
+        // modak, not a butter theft to be caught at.
+        if(!this.__noMother && !data.noMother && !this.isEvent){
 
             this.mother = new MotherWatch(this, levelConfig.mother);
             this.mother.start();
@@ -1381,7 +1383,9 @@ export default class GameScene extends Phaser.Scene {
             crumbling: false
         };
 
-        if(spec.hide){
+        // The event is a calm, celebratory climb with nobody to hide from, so
+        // it carries no cover. The shipped worlds keep theirs.
+        if(spec.hide && !this.isEvent){
 
             platform.hide = this.createHideSpot(spec.hide, plank);
 
@@ -2183,16 +2187,11 @@ export default class GameScene extends Phaser.Scene {
             .setDepth(310).setScrollFactor(0).setInteractive();
 
         const panel = this.add
-            .rectangle(cx, cy, 520, 800, 0x2E1607, 0.98)
+            .rectangle(cx, cy, 520, 720, 0x2E1607, 0.98)
             .setStrokeStyle(4, 0xFFD54A)
             .setDepth(311).setScrollFactor(0);
 
-        const heading = this.add.text(cx, cy - 355, "SHARE", {
-            fontFamily: "Arial", fontSize: "34px", fontStyle: "bold",
-            color: "#FFD54A"
-        }).setOrigin(0.5).setDepth(312).setScrollFactor(0);
-
-        parts.push(dim, panel, heading);
+        parts.push(dim, panel);
 
         // The card the player is sending - the Ganesha idol, drawn once and
         // shown here so they can see what goes out, just like the campaign's
@@ -2207,12 +2206,12 @@ export default class GameScene extends Phaser.Scene {
 
         if(this.textures.exists("ganeshCardTex")){
 
-            const preview = this.add.image(cx, cy - 190, "ganeshCardTex")
+            const preview = this.add.image(cx, cy - 150, "ganeshCardTex")
                 .setDepth(312).setScrollFactor(0);
 
             preview.setScale(300 / preview.width);
 
-            this.add.rectangle(cx, cy - 190, 308, 308)
+            this.add.rectangle(cx, cy - 150, 308, 308)
                 .setStrokeStyle(3, 0xFFD54A)
                 .setDepth(312).setScrollFactor(0);
 
@@ -2220,48 +2219,45 @@ export default class GameScene extends Phaser.Scene {
 
         }
 
-        const options = [
-            { label: "WhatsApp",  colour: 0x25D366, id: "whatsapp"  },
-            { label: "Instagram", colour: 0xD8306C, id: "instagram" },
-            { label: "Facebook",  colour: 0x1877F2, id: "facebook"  },
-            { label: "Copy link", colour: 0xB96A16, id: "copy"      }
-        ];
-
-        options.forEach((opt, i) => {
-
-            const y = cy + 15 + i * 82;
+        // One picture button and one copy button. Every app that can take the
+        // image takes it through the OS share sheet, so a row of per-app
+        // buttons was just several ways to open the one sheet.
+        const makeBtn = (y, label, colour, onTap) => {
 
             const btn = this.add
-                .rectangle(cx, y, 400, 66, opt.colour, 1)
-                .setStrokeStyle(3, 0xFFFFFF)
+                .rectangle(cx, y, 420, 76, colour, 1)
+                .setStrokeStyle(3, 0xFFD54A)
                 .setDepth(312).setScrollFactor(0)
                 .setInteractive({ useHandCursor: true });
 
-            const text = this.add.text(cx, y, opt.label, {
+            const text = this.add.text(cx, y, label, {
                 fontFamily: "Arial", fontSize: "28px", fontStyle: "bold",
-                color: "#FFFFFF"
+                color: "#FFF3C4"
             }).setOrigin(0.5).setDepth(313).setScrollFactor(0);
 
             btn.on("pointerdown", () => {
 
                 AudioManager.play(this, "click");
 
-                this.runShareTarget(opt.id);
+                onTap();
 
             });
 
             parts.push(btn, text);
 
-        });
+        };
+
+        makeBtn(cy + 70, "SHARE THE PICTURE", 0x2E7D32, () => this.shareCardImage());
+        makeBtn(cy + 165, "COPY TEXT", 0xB96A16, () => this.copyShare(this.shareMessage()));
 
         // Close
         const close = this.add
-            .rectangle(cx, cy + 355, 200, 52, 0x000000, 0.35)
+            .rectangle(cx, cy + 270, 200, 52, 0x000000, 0.35)
             .setStrokeStyle(2, 0xFFD54A)
             .setDepth(312).setScrollFactor(0)
             .setInteractive({ useHandCursor: true });
 
-        const closeText = this.add.text(cx, cy + 355, "Close", {
+        const closeText = this.add.text(cx, cy + 270, "Close", {
             fontFamily: "Arial", fontSize: "24px", color: "#FFE9A8"
         }).setOrigin(0.5).setDepth(313).setScrollFactor(0);
 
