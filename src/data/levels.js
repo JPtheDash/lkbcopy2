@@ -671,3 +671,26 @@ const Levels = [
 ];
 
 export default Levels;
+
+//-------------------------------------------------------------------
+// GANESH UTSAV - the festival event level
+//
+// Deliberately NOT part of the Levels table above: it has no place in the
+// 1..n campaign, must not shift the world math in LevelManager, and must not
+// be picked up by tools/levelcheck.mjs which enforces that the table's ids
+// run in order. It is launched straight from the home screen's event icon,
+// with GameScene reading this config and the "ganesh" theme directly rather
+// than looking either up by id.
+//
+// A gentle, celebratory climb: nine rungs, nothing that moves or falls away,
+// plenty of modaks to gather, and Yashoda looks in only once with a long
+// warning. Built with the same climb() as every other level, so it plays by
+// exactly the same proven rules - only the pictures and the mood differ.
+//-------------------------------------------------------------------
+export const GANESH_LEVEL = level({
+    id: 0,
+    timer: 75,
+    drops: [1, 3, 5, 7],
+    gap: 170, count: 9, ...RIGHT_FIRST,
+    mother: { visits: 1, warning: 3200, watch: 1000 }
+});

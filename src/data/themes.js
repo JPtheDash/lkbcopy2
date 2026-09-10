@@ -37,6 +37,17 @@ import butterPotYamuna from "../assets/items/butter_pot_yamuna.png";
 
 import krishnaHanging from "../assets/characters/krishna_hanging.png";
 
+// Ganesh Utsav event art (placeholder set - see docs for the prompts that
+// replace these). The event reuses Vrindavan's proven geometry: a tall prize
+// that is mostly rope with the sweet at the bottom.
+import ganeshBg from "../assets/ganesh/ganesh_bg.jpg";
+import ganeshPlatform from "../assets/ganesh/ganesh_platform.png";
+import modakPrize from "../assets/ganesh/modak_prize.png";
+import modakDrop from "../assets/ganesh/modak_drop.png";
+import modakHide from "../assets/ganesh/modak_hide.png";
+import ganeshaIdol from "../assets/ganesh/ganesha_idol.png";
+import ganeshaHeroSheet from "../assets/ganesh/ganesha_hero_sheet.png";
+
 export const THEMES = {
 
     //---------------------------------------------------------------
@@ -170,6 +181,72 @@ export const THEMES = {
             // hang. The branch is part of the same drawing too, so any
             // rotation would swing the tree along with the butter.
             swing: 0
+        }
+
+    },
+
+    //---------------------------------------------------------------
+    // Ganesh Utsav. The festival event: a decorated pandal, marigold
+    // ledges, and a modak offered on a garland with the idol behind it.
+    //
+    // Geometry is Vrindavan's - a tall prize that is mostly hanging garland
+    // with the sweet at the bottom - so the climb and the reach play exactly
+    // as the house world does. Only the pictures differ. `drop` and `idol`
+    // are extra to the two shipped worlds: the collectible reskin and the
+    // figure GameScene stands behind the top ledge for the event.
+    //---------------------------------------------------------------
+    ganesh: {
+
+        // A single painting panned by the climb, like the riverbank - the
+        // pandal has a top and a floor to it and cannot be tiled up a wall.
+        climb: { key: "ganeshBg", url: ganeshBg, tiled: false },
+
+        // Only the plain ledge is themed; the event level uses no moving or
+        // crumbling ledges, so those fall through to the house set in
+        // GameScene.plankArt() and are never actually drawn.
+        platforms: {
+            static: { key: "ganeshPlank", url: ganeshPlatform, surface: 0 }
+        },
+
+        // The collectible, reskinned from the butter drop to a modak.
+        drop: { key: "modakDrop", url: modakDrop },
+
+        // What the prize becomes once taken down off the garland and carried:
+        // a modak, since that is the goal being offered.
+        prizeTaken: { key: "modakHide", url: modakHide },
+
+        // The playable character for the event: Ganesha climbs to offer the
+        // modak, in Krishna's place. A six-pose sprite sheet, sliced into
+        // frames and animated - idle when still, a walk cycle on the ground,
+        // and the celebratory pose in the air.
+        hero: {
+            key: "ganeshaHero",
+            url: ganeshaHeroSheet,
+            sheet: { frameWidth: 250, frameHeight: 354 },
+            height: 230,
+            anims: {
+                idle: { frames: [0], rate: 2 },
+                run:  { frames: [1, 2, 3, 4], rate: 10 },
+                jump: { frames: [5], rate: 2 },
+                fall: { frames: [3], rate: 2 }
+            }
+        },
+
+        // Stood behind the top ledge so the climb ends at the idol's feet -
+        // reaching the modak reads as offering it. Also the seated pose the
+        // hero settles into to eat once the modak is won.
+        idol: { key: "ganeshaIdol", url: ganeshaIdol, height: 620 },
+
+        butter: {
+            key: "modakPrize",
+            url: modakPrize,
+
+            // Same shape numbers as Vrindavan's pot: 238x496, the top 55% is
+            // the garland it hangs by, the sweet fills the width at its widest.
+            height: 330,
+            bodyTop: 0.55,
+            radius: 0.5,
+            swing: 13
         }
 
     }
