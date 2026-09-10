@@ -30,6 +30,14 @@ const FILE_NAME = "butter-hunt-victory.png";
 /** What travels with the picture. The link is here, where it is tappable. */
 export function shareText(result){
 
+    // A caller may supply its own message wholesale (the festival event does),
+    // rather than the campaign's "cleared world X" boast.
+    if(result.text){
+
+        return result.text;
+
+    }
+
     const boast = result.message
         ? `${result.message}\n\n`
         : "";

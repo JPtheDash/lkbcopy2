@@ -16,6 +16,8 @@ import iconMusic from "../assets/ui/icon_music.png";
 import iconSound from "../assets/ui/icon_sound.png";
 import iconLanguage from "../assets/ui/icon_language.png";
 import SettingsPanel from "../ui/SettingsPanel";
+import ganeshIcon from "../assets/ganesh/ganesh_icon.png";
+import { GANESH_LEVEL } from "../data/levels";
 import { fitWidth, fitHeight, GAME_WIDTH, GAME_HEIGHT , coverScreen} from "../ui/layout";
 
 export default class HomeScene extends Phaser.Scene {
@@ -44,6 +46,8 @@ export default class HomeScene extends Phaser.Scene {
         loadImage(this, "iconMusic", iconMusic);
         loadImage(this, "iconSound", iconSound);
         loadImage(this, "iconLanguage", iconLanguage);
+
+        loadImage(this, "ganeshIcon", ganeshIcon);
 
     }
 
@@ -75,6 +79,36 @@ export default class HomeScene extends Phaser.Scene {
         }
 
         g.generateTexture("glowPatch", size, size);
+        g.destroy();
+
+    }
+
+    /**
+     * A warm radial light, drawn once, used additively as the event badge's
+     * glow. Stacked translucent circles rather than a gradient fill, the same
+     * trick the game uses to light the prize.
+     */
+    makeGlowLight() {
+
+        if(this.textures.exists("glowLight")){
+
+            return;
+
+        }
+
+        const size = 128;
+        const rings = 26;
+
+        const g = this.add.graphics();
+
+        for(let i = rings; i > 0; i--){
+
+            g.fillStyle(0xffcf6a, 0.06);
+            g.fillCircle(size/2, size/2, (size/2) * (i / rings));
+
+        }
+
+        g.generateTexture("glowLight", size, size);
         g.destroy();
 
     }
@@ -255,6 +289,112 @@ export default class HomeScene extends Phaser.Scene {
             AudioManager.play(this,"click");
 
             this.settingsPanel.open();
+
+        });
+
+        this.createEventIcon();
+
+    }
+
+    //------------------------------------------------
+
+    /**
+     * The Ganesh Utsav festival badge, top-left.
+     *
+     * A round marigold-framed icon that drops the player straight into the
+     * event level rather than through the world and level menus - it is a
+     * one-off celebration, not part of the campaign, so it gets its own way
+     * in. Balanced against the spinning settings gear in the far corner.
+     */
+    createEventIcon(){
+
+        // Right-hand side, vertically centred - clear of the title sign at the
+        // top and the play button and settings gear near the bottom.
+        const x = GAME_WIDTH - 96;
+        const y = GAME_HEIGHT / 2;
+
+        this.makeGlowLight();
+
+        // A warm halo that breathes light behind the badge - drawn additively
+        // so it reads as a glow rather than a coloured disc. Two layers, a
+        // wide soft one and a tighter bright one, pulsing out of step with the
+        // badge so the whole thing shimmers.
+        const halo = this.add.image(x, y, "glowLight")
+            .setBlendMode(Phaser.BlendModes.ADD)
+            .setDisplaySize(290, 290)
+            .setAlpha(0.55)
+            .setDepth(3);
+
+        const core = this.add.image(x, y, "glowLight")
+            .setBlendMode(Phaser.BlendModes.ADD)
+            .setDisplaySize(190, 190)
+            .setAlpha(0.7)
+            .setDepth(4);
+
+        const icon = fitWidth(
+            this.add.image(x, y, "ganeshIcon"),
+            168
+        ).setDepth(5).setInteractive({ useHandCursor: true });
+
+        // The glow swells and brightens
+        this.tweens.add({
+            targets: [halo, core],
+            alpha: "+=0.35",
+            scaleX: "*=1.25",
+            scaleY: "*=1.25",
+            duration: 1000,
+            yoyo: true,
+            repeat: -1,
+            ease: "Sine.easeInOut"
+        });
+
+        // A slow shine sweeping round, so the light feels alive
+        this.tweens.add({
+            targets: halo,
+            angle: 360,
+            duration: 9000,
+            repeat: -1,
+            ease: "Linear"
+        });
+
+        // A gentle festive pulse on the badge itself, offset from the glow
+        this.tweens.add({
+            targets: icon,
+            scale: icon.scale * 1.07,
+            duration: 1100,
+            yoyo: true,
+            repeat: -1,
+            ease: "Sine.easeInOut"
+        });
+
+        // The occasion, on a small plate under the badge
+        const label = this.add.text(
+            x, y + 78, "GANESH UTSAV",
+            {
+                fontFamily: "Arial",
+                fontSize: "18px",
+                fontStyle: "bold",
+                color: "#FFE9A8",
+                stroke: "#5A2D0C",
+                strokeThickness: 4
+            }
+        ).setOrigin(0.5).setDepth(6);
+
+        this.add.rectangle(x, y + 78, label.width + 16, 26, 0x7A3B0A, 0.55)
+            .setDepth(5);
+
+        // Back above the plate it was drawn after
+        this.children.bringToTop(label);
+
+        icon.on("pointerdown", () => {
+
+            AudioManager.play(this, "click");
+
+            this.scene.start("GameScene", {
+                eventLevel: GANESH_LEVEL,
+                eventTheme: "ganesh",
+                eventTitle: "GANESH UTSAV"
+            });
 
         });
 

@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { loadImage } from "../ui/loader";
+import { loadImage, loadSheet } from "../ui/loader";
 import { loadKrishna, createKrishnaAnimations, KRISHNA_KEY } from "../ui/krishna";
 
 import wallTile from "../assets/backgrounds/wall_tile.jpg";
@@ -30,6 +30,12 @@ import LevelManager from "../managers/LevelManager";
 import Levels, { TOP_LIMIT, Worlds } from "../data/levels";
 import { THEMES, themeFor } from "../data/themes";
 import MotherWatch from "../game/MotherWatch";
+import { Capacitor } from "@capacitor/core";
+import { Share } from "@capacitor/share";
+import { STORE_URL } from "../ui/ShareCard";
+import { drawGaneshShareCard } from "../ui/ganeshShareCard";
+import shareVictory from "../ui/shareVictory";
+import logoImg from "../assets/ui/logo.png";
 import { fitWidth, fitHeight, coverScreen, GAME_WIDTH, GAME_HEIGHT, WORLD_HEIGHT, FLOOR_Y } from "../ui/layout";
 
 //-------------------------
@@ -233,6 +239,51 @@ export default class GameScene extends Phaser.Scene {
 
             }
 
+            // Event extras: the reskinned collectible and the figure some
+            // themes stand behind the top ledge. Only the ganesh theme has
+            // these; the shipped worlds skip them.
+            if(theme.drop){
+
+                loadImage(this, theme.drop.key, theme.drop.url);
+
+            }
+
+            if(theme.idol){
+
+                loadImage(this, theme.idol.key, theme.idol.url);
+
+            }
+
+            if(theme.hidePot){
+
+                loadImage(this, theme.hidePot.key, theme.hidePot.url);
+
+            }
+
+            if(theme.prizeTaken){
+
+                loadImage(this, theme.prizeTaken.key, theme.prizeTaken.url);
+
+            }
+
+            if(theme.hero){
+
+                if(theme.hero.sheet){
+
+                    loadSheet(
+                        this, theme.hero.key, theme.hero.url,
+                        theme.hero.sheet.frameWidth, theme.hero.sheet.frameHeight
+                    );
+
+                }
+                else{
+
+                    loadImage(this, theme.hero.key, theme.hero.url);
+
+                }
+
+            }
+
             Object.values(theme.platforms).forEach(
                 art => loadImage(this, art.key, art.url)
             );
@@ -254,6 +305,9 @@ export default class GameScene extends Phaser.Scene {
         loadImage(this, "replayButton", replayButtonImg);
         loadImage(this, "playButton", playButtonImg);
 
+        // For the event share card (drawn on a 2D canvas from these textures)
+        loadImage(this, "logo", logoImg);
+
         AudioManager.preload(this);
 
     }
@@ -262,14 +316,37 @@ export default class GameScene extends Phaser.Scene {
 
         AudioManager.startMusic(this, "game");
 
-        this.level = data.level || 1;
+        // Kept whole so a retry (from the pause menu or a game over) restarts
+        // with the same launch - an event has no id to look itself back up by.
+        this.launchData = data;
 
-        const levelConfig = LevelManager.getLevel(this.level);
+        // Two ways in. The numbered campaign passes { level: id } and is
+        // looked up by id; the festival event passes its whole config in
+        // { eventLevel } with a theme named directly, so it needs no place in
+        // the Levels table and no world of its own.
+        this.isEvent = !!data.eventLevel;
 
-        // What this level is drawn with. The level itself says nothing about
-        // it - the ladder, the jump and the rules are identical in every
-        // world - so the look is looked up from which world the level is in.
-        this.theme = themeFor(Worlds[LevelManager.worldOf(this.level) - 1]);
+        let levelConfig;
+
+        if(this.isEvent){
+
+            levelConfig = data.eventLevel;
+            this.level = data.eventLevel.id || 0;
+            this.eventTitle = data.eventTitle || "EVENT";
+            this.theme = THEMES[data.eventTheme] || themeFor(null);
+
+        }
+        else{
+
+            this.level = data.level || 1;
+            levelConfig = LevelManager.getLevel(this.level);
+
+            // What this level is drawn with. The level itself says nothing
+            // about it - the ladder, the jump and the rules are identical in
+            // every world - so the look is looked up from which world it is in.
+            this.theme = themeFor(Worlds[LevelManager.worldOf(this.level) - 1]);
+
+        }
 
         this.isPaused = false;
         this.isGameOver = false;
@@ -349,7 +426,11 @@ export default class GameScene extends Phaser.Scene {
 
             // Its own art, not a shrunken butter pot - the pot is the goal
             // and a small copy of it on a ledge reads as the level's exit.
-            const drop = this.drops.create(spec.x, spec.y - 105, "butterDrop");
+            // A themed world may reskin it (the event's modak); otherwise it
+            // is the butter drop.
+            const dropKey = this.theme.drop ? this.theme.drop.key : "butterDrop";
+
+            const drop = this.drops.create(spec.x, spec.y - 105, dropKey);
 
             fitHeight(drop, DROP_HEIGHT);
             drop.refreshBody();
@@ -405,13 +486,44 @@ export default class GameScene extends Phaser.Scene {
 
         // What the player actually sees. Follows the body, and owns every
         // cosmetic transform.
+        //
+        // A themed world may put its own character in Krishna's place - the
+        // event has Ganesha climb to offer the modak, from his own sprite
+        // sheet. Both characters end up animated through the same four keys.
+        this.hero = this.theme.hero || null;
+
+        const heroKey = this.hero ? this.hero.key : KRISHNA_KEY;
+        const heroHeight = this.hero ? this.hero.height : KRISHNA_HEIGHT;
+
         this.krishnaArt = fitHeight(
-            this.add.sprite(this.krishna.x, this.krishna.y, KRISHNA_KEY, 0),
-            KRISHNA_HEIGHT
+            this.add.sprite(this.krishna.x, this.krishna.y, heroKey, 0),
+            heroHeight
         );
 
         createKrishnaAnimations(this);
-        this.krishnaArt.play("krishna-idle");
+
+        // A themed hero brings its own frames and animation map; the campaign
+        // uses Krishna's. update() then drives whichever through one set of
+        // names.
+        if(this.hero && this.hero.sheet){
+
+            this.heroAnims = this.buildHeroAnims(heroKey, this.hero.anims);
+
+        }
+        else{
+
+            this.heroAnims = {
+                idle: "krishna-idle",
+                run:  "krishna-run",
+                jump: "krishna-jump",
+                fall: "krishna-fall"
+            };
+
+        }
+
+        this.heroAnimated = true;
+
+        this.krishnaArt.play(this.heroAnims.idle);
 
         // Remembered so the squash tween can spring back to it
         this.krishnaScale = this.krishnaArt.scaleX;
@@ -494,6 +606,43 @@ export default class GameScene extends Phaser.Scene {
         });
 
         //-------------------------
+        // Festival dressing (event only)
+        //-------------------------
+
+        if(this.isEvent){
+
+            // The modak hangs on a marigold garland that runs all the way up
+            // from the top of the screen, so it reads as lowered from above
+            // rather than sitting just over the last ledge. Drawn to the
+            // prize's pivot (its top), which is fixed, so it does not swing.
+            this.drawTopGarland(this.butter.x, this.butter.y);
+
+            // A warm glow crowning the top ledge. The backdrop already paints
+            // the idol, so here we add only light around the goal - no idol
+            // sprite of our own.
+            const crown = this.add.image(
+                this.topPlatform.plank.x,
+                this.topPlatform.plank.surfaceY - 150,
+                "glow"
+            )
+                .setBlendMode(Phaser.BlendModes.ADD)
+                .setDisplaySize(440, 440)
+                .setDepth(-2)
+                .setAlpha(0.45);
+
+            this.tweens.add({
+                targets: crown,
+                alpha: { from: 0.3, to: 0.7 },
+                scale: crown.scale * 1.15,
+                duration: 1500,
+                yoyo: true,
+                repeat: -1,
+                ease: "Sine.easeInOut"
+            });
+
+        }
+
+        //-------------------------
         // Physics
         //-------------------------
 
@@ -540,14 +689,14 @@ export default class GameScene extends Phaser.Scene {
         this.levelText = this.add.text(
             GAME_WIDTH/2,
             38,
-            `LEVEL ${this.level}`,
+            this.isEvent ? this.eventTitle : `LEVEL ${this.level}`,
             {
                 fontFamily: "Arial",
-                fontSize: "30px",
+                fontSize: this.isEvent ? "28px" : "30px",
                 fontStyle: "bold",
-                color: "#FFFFFF",
-                stroke: "#000000",
-                strokeThickness: 4
+                color: this.isEvent ? "#FFE9A8" : "#FFFFFF",
+                stroke: this.isEvent ? "#7A3B0A" : "#000000",
+                strokeThickness: this.isEvent ? 5 : 4
             }
         ).setOrigin(0.5, 0).setDepth(200).setScrollFactor(0);
 
@@ -798,6 +947,66 @@ export default class GameScene extends Phaser.Scene {
      * has not arrived yet still gets a playable level, drawn in shelves,
      * instead of a climb of invisible ledges.
      */
+    /**
+     * Builds a themed hero's animations from its frame map and returns the
+     * { idle, run, jump, fall } keys update() plays. Run loops; the rest hold
+     * their pose. Keys are namespaced by the sheet so worlds never collide.
+     */
+    buildHeroAnims(key, spec){
+
+        const map = {};
+
+        Object.entries(spec).forEach(([name, cfg]) => {
+
+            const animKey = `${key}-${name}`;
+
+            if(!this.anims.exists(animKey)){
+
+                this.anims.create({
+                    key: animKey,
+                    frames: cfg.frames.map(f => ({ key, frame: f })),
+                    frameRate: cfg.rate || 8,
+                    repeat: name === "run" ? -1 : 0
+                });
+
+            }
+
+            map[name] = animKey;
+
+        });
+
+        return map;
+
+    }
+
+    //------------------------------------------------
+
+    /**
+     * A marigold garland strand from the top of the world down to the prize,
+     * so the modak reads as hung from above the screen. Alternating beads with
+     * a bright centre; behind the prize but in front of the backdrop.
+     */
+    drawTopGarland(x, toY){
+
+        const g = this.add.graphics().setDepth(-2);
+
+        const colours = [0xF5B020, 0xC42A22, 0xE87818];
+
+        let i = 0;
+
+        for(let y = 6; y < toY; y += 40, i++){
+
+            g.fillStyle(colours[i % colours.length], 1);
+            g.fillCircle(x, y, 13);
+            g.fillStyle(0xFFE08A, 1);
+            g.fillCircle(x, y, 5);
+
+        }
+
+    }
+
+    //------------------------------------------------
+
     plankArt(type){
 
         const art = this.theme && this.theme.platforms[type];
@@ -907,8 +1116,12 @@ export default class GameScene extends Phaser.Scene {
 
     createHideSpot(spec, plank){
 
+        // A themed world may swap the clay hide pot for its own cover - the
+        // event ducks behind a big modak instead.
+        const hideKey = this.theme.hidePot ? this.theme.hidePot.key : "hidePot";
+
         const pot = fitHeight(
-            this.add.image(0, 0, "hidePot"),
+            this.add.image(0, 0, hideKey),
             HIDE_POT_HEIGHT
         );
 
@@ -1210,6 +1423,11 @@ export default class GameScene extends Phaser.Scene {
      * the squash tween that plays on landing would be fighting it.
      */
     setHanging(on){
+
+        // Only worlds with a hanging pose (the riverbank's vine) ever swap to
+        // it. A world without one - the event, and Vrindavan - never touches
+        // the character's texture here, so a static hero stays itself.
+        if(!this.theme.hang){ return; }
 
         if(on === this.hanging){ return; }
 
@@ -1697,8 +1915,14 @@ export default class GameScene extends Phaser.Scene {
 
         const pot = this.potPoint();
 
+        // The prize off the garland and into his hands. A themed world uses
+        // its own taken-down art - the event carries a modak, not a clay pot.
+        const takenKey = this.theme.prizeTaken
+            ? this.theme.prizeTaken.key
+            : (this.theme.hidePot ? this.theme.hidePot.key : "hidePot");
+
         this.butter
-            .setTexture("hidePot")
+            .setTexture(takenKey)
             .setOrigin(0.5, 0.5)
             .setAngle(0)
             .setPosition(pot.x, pot.y);
@@ -1743,8 +1967,14 @@ export default class GameScene extends Phaser.Scene {
 
         this.krishnaArt.setVisible(false);
 
+        // The seated pose. The event settles Ganesha into his idol pose to
+        // enjoy the modak; the shipped worlds use Krishna's sitting drawing.
+        const sitKey = this.isEvent && this.theme.idol
+            ? this.theme.idol.key
+            : "krishnaSitting";
+
         const sitting = fitHeight(
-            this.add.image(this.krishna.x, restY, "krishnaSitting"),
+            this.add.image(this.krishna.x, restY, sitKey),
             KRISHNA_HEIGHT * 0.92
         ).setDepth(this.krishnaArt.depth);
 
@@ -1779,9 +2009,522 @@ export default class GameScene extends Phaser.Scene {
 
         this.time.delayedCall(WIN_OUTRO_MS, ()=>{
 
+            // The event has no campaign slot to score into, so it celebrates
+            // in place and goes home rather than to the progression screen.
+            if(this.isEvent){
+
+                this.eventWin();
+
+                return;
+
+            }
+
             this.scene.start("LevelCompleteScene", result);
 
         });
+
+    }
+
+    //------------------------------------------------
+
+    /**
+     * The festival payoff: a shower of marigold petals, a blessing, and the
+     * way home. Nothing is saved - the event is a thing you do for the day,
+     * not a level with stars to earn.
+     */
+    eventWin(){
+
+        const cx = GAME_WIDTH/2;
+        const cy = GAME_HEIGHT/2;
+
+        this.add
+            .rectangle(cx, cy, GAME_WIDTH, GAME_HEIGHT, 0x2a1403, 0.66)
+            .setDepth(300)
+            .setScrollFactor(0)
+            .setInteractive();
+
+        this.petalShower();
+
+        const title = this.add.text(
+            cx, cy - 200,
+            "Happy Ganesh\nChaturthi!",
+            {
+                fontFamily: "Arial",
+                fontSize: "62px",
+                fontStyle: "bold",
+                color: "#FFD54A",
+                stroke: "#5A2D0C",
+                strokeThickness: 8,
+                align: "center"
+            }
+        ).setOrigin(0.5).setDepth(302).setScrollFactor(0).setScale(0.7);
+
+        this.tweens.add({ targets: title, scale: 1, duration: 500, ease: "Back.Out" });
+
+        this.add.text(
+            cx, cy - 70,
+            "Ganpati Bappa Morya!\nYou offered the modak.",
+            {
+                fontFamily: "Arial",
+                fontSize: "30px",
+                color: "#FFF3D6",
+                stroke: "#3A1D06",
+                strokeThickness: 4,
+                align: "center"
+            }
+        ).setOrigin(0.5).setDepth(302).setScrollFactor(0);
+
+        //---------------------------------
+        // Share the celebration
+        //---------------------------------
+
+        this.sharePill(cx, cy + 40, "SHARE  🎉");
+
+        this.add.text(
+            cx, cy + 92,
+            "Invite friends to play",
+            {
+                fontFamily: "Arial",
+                fontSize: "20px",
+                color: "#E9D2A6"
+            }
+        ).setOrigin(0.5).setDepth(302).setScrollFactor(0);
+
+        //---------------------------------
+        // Play again / home
+        //---------------------------------
+
+        this.iconButton(
+            cx - 90, cy + 180, "replayButton", 95,
+            () => this.scene.restart(this.launchData)
+        ).setDepth(302).setScrollFactor(0);
+
+        this.iconButton(
+            cx + 90, cy + 180, "homeButton", 95,
+            () => this.scene.start("HomeScene")
+        ).setDepth(302).setScrollFactor(0);
+
+    }
+
+    //------------------------------------------------
+
+    /** A gold pill button that opens the share sheet. */
+    sharePill(x, y, label){
+
+        const text = this.add.text(x, y, label, {
+            fontFamily: "Arial",
+            fontSize: "34px",
+            fontStyle: "bold",
+            color: "#3A1D06"
+        }).setOrigin(0.5).setDepth(303).setScrollFactor(0);
+
+        const pill = this.add.rectangle(
+            x, y, text.width + 70, 68, 0xFFC93C, 1
+        )
+            .setStrokeStyle(4, 0xFFF0C0)
+            .setDepth(302)
+            .setScrollFactor(0)
+            .setInteractive({ useHandCursor: true });
+
+        this.children.bringToTop(text);
+
+        this.tweens.add({
+            targets: [pill, text],
+            scale: 1.05,
+            duration: 900,
+            yoyo: true,
+            repeat: -1,
+            ease: "Sine.easeInOut"
+        });
+
+        pill.on("pointerdown", () => {
+
+            AudioManager.play(this, "click");
+
+            this.openSharePanel();
+
+        });
+
+        return pill;
+
+    }
+
+    //------------------------------------------------
+
+    /** The festival boast plus the store link, shared by every target. */
+    shareMessage(){
+
+        return (
+            "🎉 Happy Ganesh Chaturthi! I offered a modak to Lord Ganesha in " +
+            "Little Krishna's Butter Hunt! 🐘🪔\n\n" +
+            `Play it free: ${STORE_URL}`
+        );
+
+    }
+
+    //------------------------------------------------
+
+    /**
+     * A little panel of share targets - WhatsApp, Instagram, Facebook and a
+     * plain copy. Each named app is opened directly with the message and link
+     * already written, which is faster and lands exactly where the player
+     * meant, rather than through the system sheet.
+     */
+    openSharePanel(){
+
+        const cx = GAME_WIDTH/2;
+        const cy = GAME_HEIGHT/2;
+
+        const parts = [];
+
+        // Swallows taps behind the panel, and closes it when tapped.
+        const dim = this.add
+            .rectangle(cx, cy, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.6)
+            .setDepth(310).setScrollFactor(0).setInteractive();
+
+        const panel = this.add
+            .rectangle(cx, cy, 520, 800, 0x2E1607, 0.98)
+            .setStrokeStyle(4, 0xFFD54A)
+            .setDepth(311).setScrollFactor(0);
+
+        const heading = this.add.text(cx, cy - 355, "SHARE", {
+            fontFamily: "Arial", fontSize: "34px", fontStyle: "bold",
+            color: "#FFD54A"
+        }).setOrigin(0.5).setDepth(312).setScrollFactor(0);
+
+        parts.push(dim, panel, heading);
+
+        // The card the player is sending - the Ganesha idol, drawn once and
+        // shown here so they can see what goes out, just like the campaign's
+        // share screen shows its card.
+        const card = this.getEventCard();
+
+        if(card && !this.textures.exists("ganeshCardTex")){
+
+            this.textures.addCanvas("ganeshCardTex", card);
+
+        }
+
+        if(this.textures.exists("ganeshCardTex")){
+
+            const preview = this.add.image(cx, cy - 190, "ganeshCardTex")
+                .setDepth(312).setScrollFactor(0);
+
+            preview.setScale(300 / preview.width);
+
+            this.add.rectangle(cx, cy - 190, 308, 308)
+                .setStrokeStyle(3, 0xFFD54A)
+                .setDepth(312).setScrollFactor(0);
+
+            parts.push(preview);
+
+        }
+
+        const options = [
+            { label: "WhatsApp",  colour: 0x25D366, id: "whatsapp"  },
+            { label: "Instagram", colour: 0xD8306C, id: "instagram" },
+            { label: "Facebook",  colour: 0x1877F2, id: "facebook"  },
+            { label: "Copy link", colour: 0xB96A16, id: "copy"      }
+        ];
+
+        options.forEach((opt, i) => {
+
+            const y = cy + 15 + i * 82;
+
+            const btn = this.add
+                .rectangle(cx, y, 400, 66, opt.colour, 1)
+                .setStrokeStyle(3, 0xFFFFFF)
+                .setDepth(312).setScrollFactor(0)
+                .setInteractive({ useHandCursor: true });
+
+            const text = this.add.text(cx, y, opt.label, {
+                fontFamily: "Arial", fontSize: "28px", fontStyle: "bold",
+                color: "#FFFFFF"
+            }).setOrigin(0.5).setDepth(313).setScrollFactor(0);
+
+            btn.on("pointerdown", () => {
+
+                AudioManager.play(this, "click");
+
+                this.runShareTarget(opt.id);
+
+            });
+
+            parts.push(btn, text);
+
+        });
+
+        // Close
+        const close = this.add
+            .rectangle(cx, cy + 355, 200, 52, 0x000000, 0.35)
+            .setStrokeStyle(2, 0xFFD54A)
+            .setDepth(312).setScrollFactor(0)
+            .setInteractive({ useHandCursor: true });
+
+        const closeText = this.add.text(cx, cy + 355, "Close", {
+            fontFamily: "Arial", fontSize: "24px", color: "#FFE9A8"
+        }).setOrigin(0.5).setDepth(313).setScrollFactor(0);
+
+        parts.push(close, closeText);
+
+        const shut = () => parts.forEach(p => p.destroy());
+
+        close.on("pointerdown", () => { AudioManager.play(this, "click"); shut(); });
+        dim.on("pointerdown", shut);
+
+    }
+
+    //------------------------------------------------
+
+    /** The event's share card canvas (the Ganesha idol), drawn once. */
+    getEventCard(){
+
+        if(!this._eventCard){
+
+            this._eventCard = drawGaneshShareCard(this);
+
+        }
+
+        return this._eventCard;
+
+    }
+
+    //------------------------------------------------
+
+    /** Sends the idol card as an image through the share sheet / Web Share. */
+    async shareCardImage(){
+
+        const card = this.getEventCard();
+
+        const status = await shareVictory(card, { text: this.shareMessage() });
+
+        if(status === "saved"){
+
+            this.toast("Card saved + link copied");
+
+        }
+        else if(status === "failed"){
+
+            this.copyShare(this.shareMessage());
+
+        }
+
+    }
+
+    //------------------------------------------------
+
+    /**
+     * Opens one share target.
+     *
+     * WhatsApp and Facebook take a share URL directly. Instagram accepts no
+     * shared text or link at all, so the best that can be done is copy the
+     * caption and open the app for the player to paste. `_blank` is used so
+     * Capacitor hands the link to the system (and the installed app) rather
+     * than navigating the WebView the game runs in.
+     */
+    runShareTarget(id){
+
+        const text = this.shareMessage();
+        const full = encodeURIComponent(text);
+        const store = encodeURIComponent(STORE_URL);
+
+        const open = url => window.open(url, "_blank", "noopener,noreferrer");
+
+        switch(id){
+
+            case "whatsapp":
+                open(`https://wa.me/?text=${full}`);
+                break;
+
+            case "facebook":
+                open(`https://www.facebook.com/sharer/sharer.php?u=${store}`);
+                break;
+
+            case "instagram":
+                // Instagram takes no shared text or link - only a picture - so
+                // the idol card goes out through the share sheet, which is also
+                // where Instagram appears. On the dev preview this saves the
+                // card and copies the caption instead.
+                this.shareCardImage();
+                break;
+
+            case "copy":
+            default:
+                this.copyShare(text);
+                break;
+
+        }
+
+    }
+
+    //------------------------------------------------
+
+    /**
+     * Shares a festive message and the game's Play Store link. Native goes out
+     * through the Capacitor share sheet (WhatsApp, Instagram, etc.); a browser
+     * uses the Web Share API, and anything without one falls back to copying
+     * the text so the player can paste it wherever they like.
+     */
+    async shareEvent(){
+
+        const title = "Little Krishna's Butter Hunt";
+
+        const text =
+            "🎉 Happy Ganesh Chaturthi! I offered a modak to Lord Ganesha in " +
+            "Little Krishna's Butter Hunt! 🐘🪔\n\n" +
+            `Play it free: ${STORE_URL}`;
+
+        //---------------------------------
+        // On a phone - the native share sheet (WhatsApp, Instagram, ...)
+        //---------------------------------
+
+        if(Capacitor.isNativePlatform()){
+
+            try{
+
+                await Share.share({ title, text, dialogTitle: "Share the celebration" });
+
+            }
+            catch(error){
+
+                // Backing out of the sheet reports as an error and is not one.
+                if(!/abort|cancel|dismiss/i.test(String(error && error.message))){
+
+                    this.copyShare(text);
+
+                }
+
+            }
+
+            return;
+
+        }
+
+        //---------------------------------
+        // In a browser that has the Web Share API (most phones)
+        //---------------------------------
+
+        if(navigator.share){
+
+            try{
+
+                await navigator.share({ title, text });
+
+                return;
+
+            }
+            catch(error){
+
+                if(/abort|cancel|dismiss/i.test(String(error && error.message))){
+
+                    return;
+
+                }
+
+                // Otherwise fall through to copying.
+
+            }
+
+        }
+
+        //---------------------------------
+        // Anywhere else (desktop, the dev preview) - copy the link
+        //---------------------------------
+
+        this.copyShare(text);
+
+    }
+
+    //------------------------------------------------
+
+    /** Copies the share text and tells the player it worked. */
+    async copyShare(text){
+
+        let ok = false;
+
+        try{
+
+            if(navigator.clipboard && navigator.clipboard.writeText){
+
+                await navigator.clipboard.writeText(text);
+                ok = true;
+
+            }
+
+        }
+        catch{
+
+            ok = false;
+
+        }
+
+        this.toast(ok ? "Link copied - paste to share!" : "Play: play.google.com");
+
+    }
+
+    //------------------------------------------------
+
+    /** A brief message pinned to the camera, used to confirm a share/copy. */
+    toast(message){
+
+        const y = GAME_HEIGHT/2 + 130;
+
+        const label = this.add.text(GAME_WIDTH/2, y, message, {
+            fontFamily: "Arial",
+            fontSize: "24px",
+            fontStyle: "bold",
+            color: "#3A1D06",
+            backgroundColor: "#FFE9A8",
+            padding: { left: 16, right: 16, top: 8, bottom: 8 }
+        }).setOrigin(0.5).setDepth(320).setScrollFactor(0).setAlpha(0);
+
+        this.tweens.add({
+            targets: label,
+            alpha: 1,
+            duration: 180,
+            yoyo: true,
+            hold: 1400,
+            onComplete: () => label.destroy()
+        });
+
+    }
+
+    //------------------------------------------------
+
+    /**
+     * Marigold petals drifting down over the celebration, pinned to the
+     * camera. Drawn from the spark texture tinted warm - no new art, and it
+     * reads as a festival shower rather than the pick-up sparkle.
+     */
+    petalShower(){
+
+        const colours = [0xF5B020, 0xE87818, 0xC42A22, 0xFFD54A];
+
+        for(let i = 0; i < 46; i++){
+
+            const x = Phaser.Math.Between(20, GAME_WIDTH - 20);
+
+            const petal = fitWidth(
+                this.add.image(x, -30, "spark"),
+                14 + Math.random() * 16
+            )
+                .setTint(Phaser.Utils.Array.GetRandom(colours))
+                .setDepth(301)
+                .setScrollFactor(0)
+                .setAngle(Phaser.Math.Between(0, 360));
+
+            this.tweens.add({
+                targets: petal,
+                y: GAME_HEIGHT + 40,
+                x: x + Phaser.Math.Between(-60, 60),
+                angle: petal.angle + Phaser.Math.Between(-180, 180),
+                duration: 2600 + Math.random() * 2200,
+                delay: Math.random() * 1500,
+                repeat: -1,
+                ease: "Sine.easeInOut"
+            });
+
+        }
 
     }
 
@@ -1832,7 +2575,7 @@ export default class GameScene extends Phaser.Scene {
 
         const replay = this.iconButton(
             GAME_WIDTH/2 - 90, 830, "replayButton", 95,
-            () => this.scene.restart({ level: this.level })
+            () => this.scene.restart(this.launchData)
         );
 
         const home = this.iconButton(
@@ -2023,7 +2766,9 @@ export default class GameScene extends Phaser.Scene {
         //
         // The tableau has both of them in it, so her own figure is dropped
         // rather than left standing beside a picture of herself.
-        const tableau = this.textures.exists("krishnaCaught");
+        // The catch tableau is Krishna-specific art, so the event skips it and
+        // uses the mother's own reaction instead of showing the wrong hero.
+        const tableau = this.textures.exists("krishnaCaught") && !this.isEvent;
 
         this.mother?.showCaught(!tableau);
 
@@ -2081,7 +2826,7 @@ export default class GameScene extends Phaser.Scene {
 
         this.iconButton(
             GAME_WIDTH/2 - 90, 720, "replayButton", 95,
-            () => this.scene.restart({ level: this.level })
+            () => this.scene.restart(this.launchData)
         ).setDepth(301).setScrollFactor(0);
 
         this.iconButton(
@@ -2307,26 +3052,35 @@ export default class GameScene extends Phaser.Scene {
 
         this.setHanging(!!vine);
 
-        if(this.hanging){
+        // Only an animated character has poses to switch between. A themed
+        // hero drawn as a single picture (the event's Ganesha) is left to the
+        // squash and lean tweens below for its sense of movement.
+        if(this.heroAnimated){
 
-            // No animation: it is one drawing, and playing an animation over
-            // it would put a standing frame back on the next tick.
-            this.krishnaArt.anims.stop();
+            if(this.hanging){
 
-        }
-        else if(!grounded){
+                // No animation: it is one drawing, and playing an animation
+                // over it would put a standing frame back on the next tick.
+                this.krishnaArt.anims.stop();
 
-            this.krishnaArt.play(
-                vy < 0 ? "krishna-jump" : "krishna-fall", true
-            );
+            }
+            else if(!grounded){
 
-        }
-        else{
+                this.krishnaArt.play(
+                    vy < 0 ? this.heroAnims.jump : this.heroAnims.fall, true
+                );
 
-            this.krishnaArt.play(
-                Math.abs(vx) > RUN_ANIM_THRESHOLD ? "krishna-run" : "krishna-idle",
-                true
-            );
+            }
+            else{
+
+                this.krishnaArt.play(
+                    Math.abs(vx) > RUN_ANIM_THRESHOLD
+                        ? this.heroAnims.run
+                        : this.heroAnims.idle,
+                    true
+                );
+
+            }
 
         }
 
