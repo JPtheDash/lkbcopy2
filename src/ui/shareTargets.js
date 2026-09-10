@@ -34,10 +34,17 @@
 import { STORE_URL } from "./ShareCard";
 import { shareText } from "./shareVictory";
 
+// WhatsApp, Instagram and Facebook are the picture route: the player wants the
+// card sent, and the only thing that can hand a file to another app is the
+// operating system's own share sheet (a wa.me / sharer.php link carries text
+// only - see the note at the top of this file). So these three open the share
+// sheet with the card attached, where the player taps that app and the picture
+// and its caption go together. X and Telegram stay link-only (fast, text +
+// store link), and Copy text copies the caption.
 export const TARGETS = [
-    { id: "whatsapp",  label: "WhatsApp",  colour: 0x25D366, mode: "link" },
+    { id: "whatsapp",  label: "WhatsApp",  colour: 0x25D366, mode: "picture" },
     { id: "instagram", label: "Instagram", colour: 0xD8306C, mode: "picture" },
-    { id: "facebook",  label: "Facebook",  colour: 0x1877F2, mode: "link" },
+    { id: "facebook",  label: "Facebook",  colour: 0x1877F2, mode: "picture" },
     { id: "x",         label: "X",         colour: 0x1A1A1A, mode: "link" },
     { id: "telegram",  label: "Telegram",  colour: 0x229ED9, mode: "link" },
     { id: "copy",      label: "Copy text", colour: 0x6B4A22, mode: "copy" }
