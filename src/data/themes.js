@@ -40,12 +40,11 @@ import krishnaHanging from "../assets/characters/krishna_hanging.png";
 // Ganesh Utsav event art (placeholder set - see docs for the prompts that
 // replace these). The event reuses Vrindavan's proven geometry: a tall prize
 // that is mostly rope with the sweet at the bottom.
-import ganeshBg from "../assets/ganesh/ganesh_bg.png";
+import ganeshBg from "../assets/ganesh/ganesh_bg.jpg";
 import ganeshPlatform from "../assets/ganesh/ganesh_platform.png";
 import modakPrize from "../assets/ganesh/modak_prize.png";
 import modakDrop from "../assets/ganesh/modak_drop.png";
 import modakHide from "../assets/ganesh/modak_hide.png";
-import flowerBasket from "../assets/ganesh/flower_basket.png";
 import ganeshaIdol from "../assets/ganesh/ganesha_idol.png";
 import ganeshaHeroSheet from "../assets/ganesh/ganesha_hero_sheet.png";
 
@@ -212,10 +211,6 @@ export const THEMES = {
         // The collectible, reskinned from the butter drop to a modak.
         drop: { key: "modakDrop", url: modakDrop },
 
-        // The cover to duck behind - a marigold flower basket in place of the
-        // clay pot (kept distinct from the modak, which is the collectible).
-        hidePot: { key: "flowerBasket", url: flowerBasket },
-
         // What the prize becomes once taken down off the garland and carried:
         // a modak, since that is the goal being offered.
         prizeTaken: { key: "modakHide", url: modakHide },
@@ -227,7 +222,7 @@ export const THEMES = {
         hero: {
             key: "ganeshaHero",
             url: ganeshaHeroSheet,
-            sheet: { frameWidth: 416, frameHeight: 589 },
+            sheet: { frameWidth: 250, frameHeight: 354 },
             height: 230,
             anims: {
                 idle: { frames: [0], rate: 2 },
